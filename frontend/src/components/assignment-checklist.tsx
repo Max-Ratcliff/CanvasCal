@@ -10,48 +10,7 @@ interface Assignment {
   priority: 'high' | 'medium' | 'low';
 }
 
-const mockAssignments: Assignment[] = [
-  {
-    id: '1',
-    title: 'History Essay - WWII Analysis',
-    course: 'History 101',
-    dueDate: new Date(2026, 0, 24),
-    completed: false,
-    priority: 'high',
-  },
-  {
-    id: '2',
-    title: 'Math Problem Set Chapter 5',
-    course: 'Mathematics',
-    dueDate: new Date(2026, 0, 19),
-    completed: false,
-    priority: 'high',
-  },
-  {
-    id: '3',
-    title: 'Chemistry Lab Report',
-    course: 'Chemistry',
-    dueDate: new Date(2026, 0, 25),
-    completed: false,
-    priority: 'medium',
-  },
-  {
-    id: '4',
-    title: 'English Presentation Prep',
-    course: 'English Literature',
-    dueDate: new Date(2026, 0, 29),
-    completed: false,
-    priority: 'medium',
-  },
-  {
-    id: '5',
-    title: 'Physics Practice Problems',
-    course: 'Physics',
-    dueDate: new Date(2026, 0, 26),
-    completed: true,
-    priority: 'low',
-  },
-];
+const mockAssignments: Assignment[] = [];
 
 export function AssignmentChecklist() {
   const [assignments, setAssignments] = useState<Assignment[]>(mockAssignments);

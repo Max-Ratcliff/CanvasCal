@@ -1,5 +1,6 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { ChevronLeft, ChevronRight, Download } from 'lucide-react';
+import { api } from '../services/api';
 
 export interface CalendarEvent {
   id: string;
@@ -9,18 +10,40 @@ export interface CalendarEvent {
   description?: string;
 }
 
-const mockEvents: CalendarEvent[] = [
-  { id: '1', title: 'Math Midterm', date: new Date(2026, 0, 20), type: 'exam', description: 'Chapters 1-5' },
-  { id: '2', title: 'Chemistry Lab', date: new Date(2026, 0, 22), type: 'class', description: 'Room 304' },
-  { id: '3', title: 'History Essay Due', date: new Date(2026, 0, 24), type: 'assignment', description: '10 pages on WWII' },
-  { id: '4', title: 'Physics Quiz', date: new Date(2026, 0, 27), type: 'exam', description: 'Motion and Forces' },
-  { id: '5', title: 'English Presentation', date: new Date(2026, 0, 29), type: 'assignment', description: 'Shakespeare analysis' },
-  { id: '6', title: 'Spring Semester Begins', date: new Date(2026, 0, 19), type: 'event' },
-];
-
 export function Calendar() {
   const [currentDate, setCurrentDate] = useState(new Date(2026, 0, 1));
   const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(null);
+  const [events, setEvents] = useState<CalendarEvent[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  // Fetch events from backend on mount
+  useEffect(() => {
+    fetchEvents();
+  }, []);
+
+  const fetchEvents = async () => {
+    setLoading(true);
+    try {
+      const response = await api.getEvents();
+      if (response.success && response.data) {
+        // Transform backend events to frontend format
+        const transformedEvents = response.data.map((event: any) => ({
+          id: event.id || Math.random().toString(),
+          title: event.summary || 'Untitled Event',
+          date: new Date(event.start_time),
+          type: event.event_type || 'event',
+          description: event.description || '',
+        }));
+        setEvents(transformedEvents);
+      }
+    } catch (error) {
+      console.error('Failed to fetch events:', error);
+      // Keep empty events array on error
+      setEvents([]);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const getDaysInMonth = (date: Date) => {
     const year = date.getFullYear();
@@ -34,7 +57,7 @@ export function Calendar() {
   };
 
   const getEventsForDay = (day: number) => {
-    return mockEvents.filter(event => {
+    return events.filter(event => {
       const eventDate = event.date;
       return (
         eventDate.getDate() === day &&
@@ -61,14 +84,39 @@ export function Calendar() {
     window.open(googleCalendarUrl, '_blank');
   };
 
-  const exportAllEvents = () => {
-    mockEvents.forEach(event => {
-      setTimeout(() => exportToGoogleCalendar(event), 100);
-    });
+  const exportAllEvents = async () => {
+    try {
+      const response = await api.syncCalendar(events.map(e => ({
+        summary: e.title,
+        description: e.description,
+        start_time: e.date.toISOString(),
+        end_time: new Date(e.date.getTime() + 60 * 60 * 1000).toISOString(),
+        event_type: e.type,
+      })), '');
+      
+      if (response.success) {
+        alert('Events synced successfully!');
+      } else {
+        alert('Failed to sync events. Please try again.');
+      }
+    } catch (error) {
+      console.error('Failed to sync events:', error);
+      alert('Failed to sync events. Please try again.');
+    }
   };
 
   const { daysInMonth, startingDayOfWeek } = getDaysInMonth(currentDate);
   const monthName = currentDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+
+  if (loading) {
+    return (
+      <div className="bg-white rounded-lg shadow-sm p-6" style={{ borderWidth: '2px', borderColor: '#185177' }}>
+        <div className="flex items-center justify-center h-64">
+          <p style={{ color: '#185177' }}>Loading calendar...</p>
+        </div>
+      </div>
+    );
+  }
 
   const typeColors = {
     class: 'text-white border',
@@ -91,9 +139,14 @@ export function Calendar() {
         <div className="flex items-center gap-2">
           <button
             onClick={exportAllEvents}
-            className="flex items-center gap-2 px-3 py-2 text-sm text-white rounded-lg transition-colors"
+            disabled={events.length === 0}
+            className="flex items-center gap-2 px-3 py-2 text-sm text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             style={{ backgroundColor: '#185177' }}
-            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#e2711d'}
+            onMouseEnter={(e) => {
+              if (events.length > 0) {
+                e.currentTarget.style.backgroundColor = '#e2711d';
+              }
+            }}
             onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#185177'}
           >
             <Download className="w-4 h-4" />
@@ -119,6 +172,14 @@ export function Calendar() {
           </div>
         ))}
       </div>
+
+      {events.length === 0 && (
+        <div className="text-center py-8 mb-4">
+          <p style={{ color: '#c95603' }} className="text-sm">
+            No events found. Upload a syllabus or sync with Canvas to get started!
+          </p>
+        </div>
+      )}
 
       <div className="grid grid-cols-7 gap-2">
         {Array.from({ length: startingDayOfWeek }).map((_, index) => (
