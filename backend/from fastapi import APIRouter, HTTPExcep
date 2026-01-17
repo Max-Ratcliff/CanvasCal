@@ -1,0 +1,40 @@
+from fastapi import FastAPI, APIRouter, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
+from typing import List
+from app.schemas.response import APIResponse
+from app.schemas.event import CalendarSyncRequest, EventSchema
+
+app = FastAPI(title="Canvas Cal Backend", description="AI-native productivity ecosystem backend")
+
+# Add CORS middleware
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:3000", "http://localhost:5173"],  # Vite default ports
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+router = APIRouter()
+
+@router.get("/events", response_model=APIResponse)
+async def get_events():
+    """
+    Get all calendar events.
+    """
+    # TODO: Implement logic to fetch events from database/storage
+    return APIResponse(success=True, message="Events retrieved", data=[])
+
+@router.post("/sync", response_model=APIResponse)
+async def sync_calendar(request: CalendarSyncRequest):
+    """
+    Finalizes the JSON and pushes all events to G-Cal.
+    """
+    # TODO: Implement Google Calendar sync logic
+    return APIResponse(success=True, message="Not implemented", data=None)
+
+app.include_router(router, prefix="/calendar", tags=["Google Calendar"])
+
+@app.get("/")
+async def root():
+    return {"message": "Welcome to Canvas Cal API"}
