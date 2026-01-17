@@ -10,5 +10,5 @@ PyMuPDF
 pydantic
 pydantic-settings
 supabase
-
-
+pytest
+httpx

@@ -1,0 +1,66 @@
+import asyncio
+import sys
+import os
+
+# Add the backend directory to sys.path so we can import app modules
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from app.core.config import settings
+from canvasapi import Canvas
+
+async def test_live_canvas():
+    print("--- Starting Live Canvas API Test ---")
+    
+    url = settings.CANVAS_API_URL
+    token = settings.CANVAS_ACCESS_TOKEN
+
+    if not url or not token or token == "your_canvas_access_token":
+        print("Error: CANVAS_API_URL or CANVAS_ACCESS_TOKEN is missing or invalid in backend/.env")
+        print(f"URL: {url}")
+        print(f"Token: {'*' * 5 if token else 'None'}")
+        return
+
+    print(f"Connecting to Canvas at: {url}")
+    
+    try:
+        canvas = Canvas(url, token)
+        user = canvas.get_current_user()
+        print(f"Successfully authenticated as: {user.name} (ID: {user.id})")
+        
+        courses = user.get_courses(enrollment_state='active')
+        print(f"\nFetching active courses...")
+        
+        count = 0
+        for course in courses:
+            if not hasattr(course, 'name'):
+                continue
+            
+            print(f"\n[Course] {course.name} (ID: {course.id})")
+            
+            try:
+                assignments = course.get_assignments(bucket='upcoming')
+                a_count = 0
+                for assign in assignments:
+                    print(f"  - Assignment: {assign.name} (Due: {assign.due_at})")
+                    a_count += 1
+                if a_count == 0:
+                    print("  - No upcoming assignments found.")
+            except Exception as e:
+                print(f"  - Error fetching assignments: {e}")
+            
+            count += 1
+            if count >= 3:
+                print("\n(Stopping after 3 courses for brevity)")
+                break
+        
+        if count == 0:
+            print("No active courses found.")
+
+        print("\n--- Live Test Complete: SUCCESS ---")
+
+    except Exception as e:
+        print(f"\n--- Live Test Failed ---")
+        print(f"Error: {e}")
+
+if __name__ == "__main__":
+    asyncio.run(test_live_canvas())

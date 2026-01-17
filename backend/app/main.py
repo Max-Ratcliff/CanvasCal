@@ -1,13 +1,14 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.api import auth, syllabus, canvas, calendar
+from app.core.config import settings
 
-app = FastAPI(title="Canvas Cal Backend", description="AI-native productivity ecosystem backend")
+app = FastAPI(title=settings.PROJECT_NAME, description="AI-native productivity ecosystem backend")
 
 # Add CORS middleware to allow frontend communication
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://localhost:5173", "http://localhost:5174"],
+    allow_origins=settings.BACKEND_CORS_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
