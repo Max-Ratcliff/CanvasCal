@@ -9,4 +9,6 @@ google-generativeai
 PyMuPDF
 pydantic
 pydantic-settings
+supabase
+
 
