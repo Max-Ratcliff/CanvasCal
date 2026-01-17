@@ -38,13 +38,13 @@ async def test_live_canvas():
             print(f"\n[Course] {course.name} (ID: {course.id})")
             
             try:
-                assignments = course.get_assignments(bucket='upcoming')
+                assignments = course.get_assignments() # fetch all assignments
                 a_count = 0
                 for assign in assignments:
                     print(f"  - Assignment: {assign.name} (Due: {assign.due_at})")
                     a_count += 1
                 if a_count == 0:
-                    print("  - No upcoming assignments found.")
+                    print("  - No assignments found.")
             except Exception as e:
                 print(f"  - Error fetching assignments: {e}")
             
@@ -55,6 +55,17 @@ async def test_live_canvas():
         
         if count == 0:
             print("No active courses found.")
+        else:
+            print(f"\nFetching announcements for active courses...")
+            course_ids = [f"course_{c.id}" for c in courses if hasattr(c, 'id')]
+            if course_ids:
+                announcements = canvas.get_announcements(context_codes=course_ids[:10]) # limit to first 10 for speed
+                ann_count = 0
+                for ann in announcements:
+                    print(f"  - Announcement: {ann.title} (Posted: {ann.posted_at})")
+                    ann_count += 1
+                if ann_count == 0:
+                    print("  - No announcements found.")
 
         print("\n--- Live Test Complete: SUCCESS ---")
 

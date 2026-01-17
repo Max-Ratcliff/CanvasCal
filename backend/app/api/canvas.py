@@ -25,8 +25,8 @@ async def get_canvas_assignments(canvas_token: str):
                 if not hasattr(course, 'name'):
                     continue
                 
-                # Fetch upcoming assignments
-                assignments = course.get_assignments(bucket='upcoming')
+                # Fetch assignments
+                assignments = course.get_assignments()
                 for assign in assignments:
                     all_assignments.append({
                         "id": assign.id,
@@ -42,6 +42,44 @@ async def get_canvas_assignments(canvas_token: str):
                 continue
 
         return APIResponse(success=True, message="Assignments fetched successfully", data=all_assignments)
+
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+@router.get("/announcements", response_model=APIResponse[List[Dict[str, Any]]])
+async def get_canvas_announcements(canvas_token: str):
+    """
+    Fetches announcements from Canvas.
+    """
+    if not settings.CANVAS_API_URL:
+        raise HTTPException(status_code=500, detail="Canvas API URL not configured.")
+
+    try:
+        canvas = Canvas(settings.CANVAS_API_URL, canvas_token)
+        user = canvas.get_current_user()
+        courses = list(user.get_courses(enrollment_state='active'))
+        course_ids = [course.id for course in courses if hasattr(course, 'id')]
+        
+        if not course_ids:
+            return APIResponse(success=True, message="No active courses found", data=[])
+
+        # get_announcements takes context_codes which are strings like 'course_123'
+        context_codes = [f"course_{cid}" for cid in course_ids]
+        announcements = canvas.get_announcements(context_codes=context_codes)
+        
+        all_announcements = []
+        for ann in announcements:
+            all_announcements.append({
+                "id": ann.id,
+                "title": ann.title,
+                "message": ann.message,
+                "posted_at": ann.posted_at,
+                "author": getattr(ann, 'user_name', 'Unknown'),
+                "html_url": ann.html_url,
+                "context_code": ann.context_code
+            })
+
+        return APIResponse(success=True, message="Announcements fetched successfully", data=all_announcements)
 
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
