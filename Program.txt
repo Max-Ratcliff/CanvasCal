@@ -1,0 +1,9 @@
+What the product will actually do:
+
+  Read and access a user's canvas class/schedule to be able to display a calendar with the user's/UCSC's timetable of classes, events, clubs, etc. 
+    -Agent managed.
+
+
+What is it:
+
+  It is a website that can access a user's UCSC/Canvas account that is essentially a replica of Google Calendar but with an agentic and UCSC twist.
