@@ -115,12 +115,47 @@ def chat_with_agent(message: str, user_id: str, history: list = None, timezone: 
                     service.delete_event(google_event_id)
                 except Exception as e:
                     logger.error(f"Failed to delete from Google Calendar: {e}")
-                    # Continue to delete from DB even if Google fails? 
-                    # Probably yes, to keep local state clean, but warn user.
 
             # 3. Delete from DB
             result = db.table("events").delete().eq("id", event_id).eq("user_id", user_id).execute()
             return {"status": "success", "deleted_count": len(result.data), "google_deleted": bool(google_event_id)}
+        except Exception as e:
+            return {"error": str(e)}
+
+    def update_calendar_event(event_id: str, summary: Optional[str] = None, start_time: Optional[str] = None, end_time: Optional[str] = None, description: Optional[str] = None, location: Optional[str] = None):
+        """
+        Update an existing event. Only provided fields will be updated.
+        """
+        from app.db import get_db
+        from app.services.google_calendar import get_calendar_service
+        db = get_db()
+        try:
+            # 1. Prepare Update Data
+            update_data = {}
+            if summary: update_data["summary"] = summary
+            if start_time: update_data["start_time"] = start_time
+            if end_time: update_data["end_time"] = end_time
+            if description: update_data["description"] = description
+            if location: update_data["location"] = location
+            
+            if not update_data:
+                return {"error": "No fields provided to update"}
+
+            # 2. Update DB
+            result = db.table("events").update(update_data).eq("id", event_id).eq("user_id", user_id).execute()
+            if not result.data:
+                return {"error": "Event not found or update failed"}
+            
+            updated_event = result.data[0]
+
+            # 3. Sync to Google
+            try:
+                service = get_calendar_service(user_id)
+                service.sync_events([updated_event])
+            except Exception as e:
+                logger.error(f"Failed to sync updated event: {e}")
+
+            return {"status": "success", "event": updated_event}
         except Exception as e:
             return {"error": str(e)}
 
@@ -143,6 +178,7 @@ def chat_with_agent(message: str, user_id: str, history: list = None, timezone: 
         get_calendar_events,
         add_calendar_event,
         delete_calendar_event,
+        update_calendar_event,
         check_calendar_availability,
         get_transit_time
     ]
@@ -155,10 +191,8 @@ def chat_with_agent(message: str, user_id: str, history: list = None, timezone: 
         ctx_start = datetime.now()
         ctx_end = ctx_start + timedelta(days=7)
         
-        # We use a direct DB query here similar to get_calendar_events
-        # but formatted for the LLM's context window
         try:
-            ctx_res = db.table("events").select("summary, start_time, end_time, event_type") \
+            ctx_res = db.table("events").select("id, summary, start_time, end_time, event_type") \
                 .eq("user_id", user_id) \
                 .gte("start_time", ctx_start.isoformat()) \
                 .lte("end_time", ctx_end.isoformat()) \
@@ -168,11 +202,11 @@ def chat_with_agent(message: str, user_id: str, history: list = None, timezone: 
             if ctx_res.data:
                 lines = []
                 for e in ctx_res.data:
-                    # Simple format: "Monday 10:00 AM - Math 101 (Class)"
+                    # Include ID so agent can act immediately
                     try:
                         s = datetime.fromisoformat(e['start_time'].replace('Z', '+00:00'))
-                        day_str = s.strftime('%A %I:%M %p')
-                        lines.append(f"- {day_str}: {e['summary']} ({e['event_type']})")
+                        day_str = s.strftime('%A, %b %d @ %I:%M %p')
+                        lines.append(f"- [{e['id']}] {day_str}: {e['summary']} ({e['event_type']})")
                     except:
                         continue
                 upcoming_events_text = "\n".join(lines)
@@ -193,14 +227,11 @@ def chat_with_agent(message: str, user_id: str, history: list = None, timezone: 
         ==================================
         
         Your Goal: Help the user manage their schedule. Be fast, concise, and smart.
-        1. INFER information. Calculate relative dates like 'next Tuesday'.
-        2. Use tools to check availability before adding events if appropriate.
-        3. If adding a class, default to weekly.
-        4. TIMEZONE: The user is in {timezone}. When calling tools, generate ISO 8601 timestamps with the correct offset for this timezone (e.g. for US/Pacific it might be -07:00 or -08:00). Do NOT use UTC ('Z') unless specifically asked.
-        5. DELETING EVENTS: Never ask the user for an ID. First, use `get_calendar_events` with the `keyword` and inferred date range to find the event.
-           - If you find exactly one match, proceed to delete it using its ID.
-           - If you find multiple matches, list them and ask the user to specify which one.
-           - If you find none, tell the user you couldn't find it.
+        1. YOU HAVE IDS: The IDs in brackets [like-this] are the database IDs. If the user asks to delete/update an event listed above, use that ID directly.
+        2. INFER information. Calculate relative dates like 'next Tuesday'.
+        3. Use tools to check availability before adding events if appropriate.
+        4. TIMEZONE: The user is in {timezone}. When calling tools, generate ISO 8601 timestamps with the correct offset for this timezone.
+        5. DELETING/UPDATING: If the event isn't in the context above, use `get_calendar_events` with the `keyword` to find it first.
         """
 
         # Construct full conversation history

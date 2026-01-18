@@ -43,7 +43,7 @@ class GoogleCalendarService:
             token_uri="https://oauth2.googleapis.com/token",
             client_id=settings.GOOGLE_CLIENT_ID,
             client_secret=settings.GOOGLE_CLIENT_SECRET,
-            scopes=['https://www.googleapis.com/auth/calendar.events']
+            scopes=['https://www.googleapis.com/auth/calendar']
         )
 
         # Auto-Refresh if expired
@@ -66,27 +66,32 @@ class GoogleCalendarService:
         """
         Logic:
         1. Check DB for 'google_calendar_id'.
-        2. If missing, list Google Calendars to see if 'CanvasCal' exists.
+        2. If missing or 'primary', list Google Calendars to see if 'CanvasCal' exists.
         3. If not exists, create it.
         4. Save ID to DB.
         """
         # 1. Check DB
-        result = self.db.table("user_integrations").select("google_calendar_id").eq("user_id", self.user_id).execute()
-        stored_id = result.data[0].get("google_calendar_id")
-        
-        # If we have a stored ID that isn't 'primary', assume it's valid for now
-        # (A more robust check would be to try getting it from API, but that costs latency)
-        if stored_id and stored_id != 'primary':
-            return stored_id
+        try:
+            result = self.db.table("user_integrations").select("google_calendar_id").eq("user_id", self.user_id).execute()
+            if result.data:
+                stored_id = result.data[0].get("google_calendar_id")
+                # If we have a stored ID that isn't 'primary', assume it's valid for now
+                if stored_id and stored_id != 'primary':
+                    logger.info(f"Using stored calendar_id: {stored_id}")
+                    return stored_id
+        except Exception as e:
+            logger.error(f"Error checking DB for calendar_id: {e}")
 
-        # 2. List Calendars (Slow, but necessary if ID missing)
+        # 2. List Calendars
+        logger.info("Searching for 'CanvasCal' in Google Calendar list...")
         try:
             page_token = None
             while True:
                 calendar_list = self.service.calendarList().list(pageToken=page_token).execute()
-                for calendar_list_entry in calendar_list['items']:
+                for calendar_list_entry in calendar_list.get('items', []):
                     if calendar_list_entry['summary'] == 'CanvasCal':
                         found_id = calendar_list_entry['id']
+                        logger.info(f"Found existing 'CanvasCal' with ID: {found_id}")
                         self._update_calendar_id_in_db(found_id)
                         return found_id
                 page_token = calendar_list.get('nextPageToken')
@@ -96,23 +101,34 @@ class GoogleCalendarService:
             logger.warning(f"Error listing calendars: {e}")
 
         # 3. Create New
+        logger.info("Creating new 'CanvasCal' calendar...")
         try:
-            calendar = {
+            calendar_body = {
                 'summary': 'CanvasCal',
-                'timeZone': 'UTC'
+                'description': 'Automated calendar for Canvas LMS and AI Assistant',
+                'timeZone': 'UTC' # Could use user timezone here if available
             }
-            created_calendar = self.service.calendars().insert(body=calendar).execute()
+            created_calendar = self.service.calendars().insert(body=calendar_body).execute()
             new_id = created_calendar['id']
+            logger.info(f"Successfully created 'CanvasCal' with ID: {new_id}")
+            
+            # 4. Save to DB
             self._update_calendar_id_in_db(new_id)
             return new_id
         except Exception as e:
-            logger.error(f"Error creating calendar: {e}")
-            return 'primary' # Fallback
+            logger.error(f"FATAL: Error creating calendar: {e}")
+            # If we have the 'primary' scope but not 'calendar' scope, this will fail
+            # Reverting to 'primary' is a last resort
+            return 'primary'
 
     def _update_calendar_id_in_db(self, calendar_id):
-        self.db.table("user_integrations").update({
-            "google_calendar_id": calendar_id
-        }).eq("user_id", self.user_id).execute()
+        try:
+            self.db.table("user_integrations").update({
+                "google_calendar_id": calendar_id
+            }).eq("user_id", self.user_id).execute()
+            logger.info(f"Updated DB with calendar_id: {calendar_id}")
+        except Exception as e:
+            logger.error(f"Failed to update calendar_id in DB: {e}")
 
     def sync_events(self, events: list):
         """

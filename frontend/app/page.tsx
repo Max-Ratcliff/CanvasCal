@@ -6,16 +6,19 @@ import { Calendar } from "@/components/calendar"
 import { AIAssistant } from "@/components/ai-assistant"
 import { UpcomingCard } from "@/components/upcoming-card"
 import { BananaSlugBackground } from "@/components/banana-slug-background"
+import { SyllabusViewer } from "@/components/syllabus-viewer"
 import { api } from "@/lib/api"
 import { toast } from "sonner"
 import { useGoogleLogin } from "@react-oauth/google"
 import { useAuth } from "./providers"
+import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog"
 
 export default function Home() {
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [isUploading, setIsUploading] = useState(false)
   const [isConnectingGoogle, setIsConnectingGoogle] = useState(false)
   const [isSyncingCanvas, setIsSyncingCanvas] = useState(false)
+  const [isSyllabusOpen, setIsSyllabusOpen] = useState(false)
   const [integrations, setIntegrations] = useState({ google_calendar: false, canvas: false })
   const { session, signIn, signOut, token } = useAuth()
 
@@ -31,32 +34,33 @@ export default function Home() {
     }
   }, [token])
 
+  const handleGoogleSuccess = async (tokenResponse: any) => {
+    if (!token) return
+    setIsConnectingGoogle(true)
+    try {
+      const { code } = tokenResponse
+      const response = await api.googleAuth(code, token)
+      if (response.success) {
+        toast.success("Google Calendar connected!")
+        setIntegrations(prev => ({ ...prev, google_calendar: true }))
+      } else {
+        toast.error(response.message)
+      }
+    } catch (error) {
+      toast.error("Failed to connect Google")
+    } finally {
+      setIsConnectingGoogle(false)
+    }
+  }
+
   // This is for the *additional* Google Calendar permission (offline access)
-  const googleLink = useGoogleLogin({
-    onSuccess: async (codeResponse) => {
-      if (!token) {
-          toast.error("Please sign in first")
-          return
-      }
-      setIsConnectingGoogle(true)
-      try {
-        const response = await api.googleAuth(codeResponse.code, token)
-        if (response.success) {
-          toast.success("Google Calendar connected!")
-          setIntegrations(prev => ({ ...prev, google_calendar: true }))
-        } else {
-          toast.error("Failed to connect: " + response.message)
-        }
-      } catch (error) {
-        console.error("Auth error:", error)
-        toast.error("An error occurred during Google connection")
-      } finally {
-        setIsConnectingGoogle(false)
-      }
-    },
+  const loginWithGoogle = useGoogleLogin({
+    onSuccess: handleGoogleSuccess,
+    onError: (error) => toast.error("Google Login Failed"),
     flow: 'auth-code',
-    scope: 'https://www.googleapis.com/auth/calendar.events https://www.googleapis.com/auth/calendar.readonly'
-  })
+    scope: 'https://www.googleapis.com/auth/calendar',
+    overrideScope: true,
+  });
 
   const handleCanvasSync = async () => {
       if (!token) return
@@ -189,7 +193,7 @@ export default function Home() {
                   </div>
                 ) : (
                   <button 
-                    onClick={() => googleLink()}
+                    onClick={() => loginWithGoogle()}
                     disabled={isConnectingGoogle}
                     className="flex items-center gap-2 bg-white text-[#2d4a5e] px-4 py-2.5 rounded-xl border border-[#2d4a5e]/20 hover:bg-gray-50 transition-colors disabled:opacity-50"
                   >

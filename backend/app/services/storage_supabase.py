@@ -77,3 +77,29 @@ class SupabaseStorage:
         except Exception as e:
             logger.error(f"Error deleting event {event_id}: {e}")
             return False
+
+    @staticmethod
+    def save_syllabus(user_id: str, course_name: str, raw_text: str, insights: Dict):
+        supabase = get_db()
+        if not supabase: return
+        try:
+            data = {
+                "user_id": user_id,
+                "course_name": course_name,
+                "raw_text": raw_text,
+                "ai_insights": insights
+            }
+            supabase.table("syllabi").insert(data).execute()
+        except Exception as e:
+            logger.error(f"Error saving syllabus: {e}")
+
+    @staticmethod
+    def get_syllabi(user_id: str):
+        supabase = get_db()
+        if not supabase: return []
+        try:
+            res = supabase.table("syllabi").select("*").eq("user_id", user_id).execute()
+            return res.data
+        except Exception as e:
+            logger.error(f"Error fetching syllabi: {e}")
+            return []

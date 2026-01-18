@@ -94,22 +94,17 @@ class APIService {
   async uploadSyllabus(file: File, token: string) {
     const formData = new FormData();
     formData.append('file', file);
-
-    const headers: HeadersInit = {
-        'Authorization': `Bearer ${token}`
-    };
-
-    const response = await fetch(`${API_BASE_URL}/process/syllabus`, {
+    return this.request<any>('/syllabus/syllabus', {
       method: 'POST',
       body: formData,
-      headers
-    });
+      // Note: Don't set Content-Type header for FormData, browser does it with boundary
+    }, token);
+  }
 
-    if (!response.ok) {
-      throw new Error(`Upload failed: ${response.statusText}`);
-    }
-
-    return response.json();
+  async getSyllabi(token: string) {
+    return this.request<any[]>('/syllabus/syllabus', {
+      method: 'GET',
+    }, token);
   }
 }
 

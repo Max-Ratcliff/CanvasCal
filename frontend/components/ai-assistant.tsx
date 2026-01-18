@@ -101,7 +101,7 @@ export function AIAssistant() {
   }
 
   return (
-    <div className="bg-white/60 backdrop-blur-md rounded-2xl shadow-sm border border-white/40 h-full flex flex-col">
+    <div className="bg-white/60 backdrop-blur-md rounded-2xl shadow-sm border border-white/40 h-[calc(100vh-140px)] flex flex-col">
       {/* Header */}
       <div className="p-4 border-b border-white/40 flex items-center gap-3">
         <div className="w-10 h-10 rounded-full bg-[#2d4a5e] flex items-center justify-center flex-shrink-0">
