@@ -90,7 +90,9 @@ pytest tests/
 
 ## 👥 Contributors
 -   Max Ratcliff
--   [Teammate Names]
+-   Sharanya Ramanujan
+-   Jiya Sawarkar
+-   Tarun Nagaraju
 
 ---
 *Built for CruzHacks 2026*
