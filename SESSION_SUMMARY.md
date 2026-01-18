@@ -1,53 +1,39 @@
-# Session Summary & Canvas Integration Guide
+# Session Summary: UI Overhaul & AI Agent Integration
 
-**Date:** January 17, 2026
+**Date:** January 18, 2026
 
-## 1. Summary of Changes
-We have successfully implemented the core Backend services and connected them to the Frontend UI.
+## 🏆 Key Achievements
 
-### Backend Implementation
-- **Syllabus Parsing:** Implemented `backend/app/services/parser.py` using `PyMuPDF` for text extraction and `Google Gemini` for intelligent event parsing.
-- **Canvas Integration:** 
-    - Added `/canvas/announcements` endpoint.
-    - Updated `/canvas/assignments` to fetch all assignment buckets.
-- **Testing:** 
-    - Verified Canvas integration with `backend/scripts/manual_test_canvas.py`.
-    - Added unit tests for Syllabus Parser (`backend/tests/test_syllabus.py`).
+1.  **Automated Canvas Sync:**
+    -   **One-Click Trigger:** Added `/canvas/sync` endpoint that scrapes active courses, assignments, and even finds/parses PDF syllabi automatically.
+    -   **Frontend Integration:** Added "Sync Canvas" button to the dashboard header.
+    -   **Smart Dedup:** Implemented deterministic UUID generation (User+Name+Date) to prevent duplicate events during re-syncs.
 
-### Frontend Integration
-- **API Service:** Updated `frontend/src/services/api.ts` to match the backend schema for Assignments and Announcements.
-- **Components:**
-    - Updated `AssignmentChecklist` to fetch real data from Canvas (requires `canvas_token`).
-    - Created `Announcements` component to display course announcements.
-    - Integrated both into `App.tsx`.
-- **Verification:** Successfully built the frontend (`npm run build`).
+2.  **Full-Stack Authentication & Security:**
+    -   **Magic Link Auth:** Switched from Google Auth (disabled in project) to Supabase Email Magic Links.
+    -   **Backend:** Implemented `app/core/security.py` to validate Supabase JWTs and protected all critical endpoints.
+    -   **RLS Fixes:** Updated `GoogleCalendarService` to use the Service Role Key, correctly bypassing RLS to access encrypted tokens in background tasks.
 
-## 2. How to Run the Full Stack
+3.  **Google Calendar Sync Engine:**
+    -   **Isolation:** Verified (via tests) that the app creates and uses a dedicated "CanvasCal" calendar, keeping personal events separate.
+    -   **Token Security:** Implemented AES-256 encryption for Google OAuth tokens.
+    -   **End-to-End:** Connected the Frontend's "Link Google Cal" button to the Backend's `/auth/google` exchange endpoint.
 
-### Backend
-1. Ensure your `backend/.env` is set up (see previous summary).
-2. Activate virtual environment and run the server:
-```bash
-source backend/venv/bin/activate
-uvicorn app.main:app --reload --port 8000
-```
+4.  **Database & Schema:**
+    -   Updated `events` table schema to support `course_id`, `source`, `verified`, and `color_hex`.
+    -   Verified Row Level Security (RLS) policies are active (users cannot see each other's events).
 
-### Frontend
-1. Open a new terminal.
-2. Navigate to `frontend/`.
-3. Start the dev server:
-```bash
-npm run dev
-```
+## 🔜 Next Steps
 
-### Authentication (Temporary)
-For the current "MVP" state, you need to manually set your Canvas Token in the browser's Local Storage to see real data:
-1. Open the Frontend in your browser (e.g., `http://localhost:5173`).
-2. Open Developer Tools (F12) -> Console.
-3. Run: `localStorage.setItem('canvas_token', 'YOUR_ACTUAL_CANVAS_TOKEN')`
-4. Refresh the page or click the "Sync" icon.
+1.  **Deployment:** Deploy Backend to Render/Railway and Frontend to Vercel.
+2.  **Real-Time Polish:** Add loading states and optimistic UI updates for the Calendar sync.
+3.  **Canvas OAuth:** Replace the manual "Paste Token" method with a proper OAuth2 flow.
 
-## 3. Next Steps
-1.  **Google Calendar Sync:** Implement the `syncCalendar` logic in `backend/app/services/scheduler.py` and `backend/app/api/calendar.py`.
-2.  **Syllabus Review UI:** Create a "Review" screen in the frontend where users can edit the parsed events before confirming the upload to their calendar.
-3.  **Campus Logic:** Implement the UCSC travel buffer logic.
+---
+
+## 📜 Previous Sessions
+
+### UI Overhaul & AI Agent (Jan 18, 2026 - Morning)
+-   **UI:** Merged "Banana Slug" design, migrated to Next.js structure.
+-   **AI:** Integrated Gemini 2.0 Flash with Tool Use.
+-   **Backend:** Switched to Supabase.

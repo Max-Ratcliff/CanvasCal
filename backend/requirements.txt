@@ -11,4 +11,4 @@ pydantic
 pydantic-settings
 supabase
 pytest
-httpx
+httpxcryptography

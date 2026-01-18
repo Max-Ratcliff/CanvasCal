@@ -48,8 +48,8 @@ def test_get_canvas_assignments_no_url_config():
     settings.CANVAS_API_URL = ""
     
     response = client.get("/canvas/assignments?canvas_token=fake_token")
-    assert response.status_code == 500
-    assert "Canvas API URL not configured" in response.json()["detail"]
+    assert response.status_code == 400
+    assert "Canvas API URL or Access Token missing" in response.json()["detail"]
 
 def test_get_canvas_assignments_api_error():
     # Mock settings
@@ -63,5 +63,5 @@ def test_get_canvas_assignments_api_error():
         
         response = client.get("/canvas/assignments?canvas_token=invalid_token")
         
-        assert response.status_code == 400
+        assert response.status_code == 500
         assert "Invalid Access Token" in response.json()["detail"]

@@ -1,11 +1,30 @@
+# CanvasCal frontend design
 
-  # School Calendar Export Page
+*Automatically synced with your [v0.app](https://v0.app) deployments*
 
-  This is a code bundle for School Calendar Export Page. The original project is available at https://www.figma.com/design/TmZVwaVAom5xv1LJGACGRP/School-Calendar-Export-Page.
+[![Deployed on Vercel](https://img.shields.io/badge/Deployed%20on-Vercel-black?style=for-the-badge&logo=vercel)](https://vercel.com/riptide-06s-projects/v0-canvas-cal-frontend-design)
+[![Built with v0](https://img.shields.io/badge/Built%20with-v0.app-black?style=for-the-badge)](https://v0.app/chat/hlHZamAj7AI)
 
-  ## Running the code
+## Overview
 
-  Run `npm i` to install the dependencies.
+This repository will stay in sync with your deployed chats on [v0.app](https://v0.app).
+Any changes you make to your deployed app will be automatically pushed to this repository from [v0.app](https://v0.app).
 
-  Run `npm run dev` to start the development server.
-  
+## Deployment
+
+Your project is live at:
+
+**[https://vercel.com/riptide-06s-projects/v0-canvas-cal-frontend-design](https://vercel.com/riptide-06s-projects/v0-canvas-cal-frontend-design)**
+
+## Build your app
+
+Continue building your app on:
+
+**[https://v0.app/chat/hlHZamAj7AI](https://v0.app/chat/hlHZamAj7AI)**
+
+## How It Works
+
+1. Create and modify your project using [v0.app](https://v0.app)
+2. Deploy your chats from the v0 interface
+3. Changes are automatically pushed to this repository
+4. Vercel deploys the latest version from this repository

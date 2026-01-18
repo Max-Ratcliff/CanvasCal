@@ -5,7 +5,7 @@ echo "Starting CanvasCal Backend and Frontend..."
 # Start backend
 echo "Starting backend on http://localhost:8000..."
 cd backend
-PYTHONPATH=$(pwd) ../.venv/bin/python -m uvicorn app.main:app --reload --host 127.0.0.1 --port 8000 &
+PYTHONPATH=$(pwd) venv/bin/python -m uvicorn app.main:app --reload --host 127.0.0.1 --port 8000 &
 BACKEND_PID=$!
 
 # Wait a moment for backend to start
