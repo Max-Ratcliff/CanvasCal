@@ -10,6 +10,7 @@ router = APIRouter()
 class ChatRequest(BaseModel):
     message: str
     history: Optional[List[Dict[str, Any]]] = []
+    timezone: Optional[str] = "UTC"
 
 @router.post("/chat", response_model=APIResponse)
 async def agent_chat(request: ChatRequest, user = Depends(get_current_user)):
@@ -17,8 +18,13 @@ async def agent_chat(request: ChatRequest, user = Depends(get_current_user)):
     Endpoint to chat with the AI Agent.
     """
     try:
-        # Pass the user_id and history to the agent service
-        response_text = chat_with_agent(request.message, user_id=user.id, history=request.history)
+        # Pass the user_id, history, and timezone to the agent service
+        response_text = chat_with_agent(
+            request.message, 
+            user_id=user.id, 
+            history=request.history, 
+            timezone=request.timezone
+        )
         return APIResponse(
             success=True, 
             message="Agent response received", 

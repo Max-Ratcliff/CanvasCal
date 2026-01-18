@@ -32,24 +32,32 @@ export function Calendar() {
   
   const monthName = currentDate.toLocaleString("default", { month: "long" })
   
-  useEffect(() => {
-    const fetchEvents = async () => {
-      if (!token) return
-      setIsLoading(true)
-      try {
-        const start = new Date(year, month, 1).toISOString()
-        const end = new Date(year, month + 1, 0).toISOString()
-        const response = await api.getEvents(token, start, end)
-        if (response.success) {
-          setEvents(response.data)
-        }
-      } catch (error) {
-        console.error("Failed to fetch events:", error)
-      } finally {
-        setIsLoading(false)
+  const fetchEvents = async () => {
+    if (!token) return
+    setIsLoading(true)
+    try {
+      const start = new Date(year, month, 1).toISOString()
+      const end = new Date(year, month + 1, 0).toISOString()
+      const response = await api.getEvents(token, start, end)
+      if (response.success) {
+        setEvents(response.data)
       }
+    } catch (error) {
+      console.error("Failed to fetch events:", error)
+    } finally {
+      setIsLoading(false)
     }
+  }
+
+  useEffect(() => {
     fetchEvents()
+
+    const handleRefresh = () => fetchEvents()
+    window.addEventListener('calendar-updated', handleRefresh)
+    
+    return () => {
+      window.removeEventListener('calendar-updated', handleRefresh)
+    }
   }, [year, month, token])
 
   const prevMonth = () => {

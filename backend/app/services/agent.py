@@ -8,7 +8,7 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-def chat_with_agent(message: str, user_id: str, history: list = None):
+def chat_with_agent(message: str, user_id: str, history: list = None, timezone: str = "UTC"):
     """
     Sends a message to the Gemini Agent with access to tools.
     The tools are defined locally to capture the user_id.
@@ -77,10 +77,13 @@ def chat_with_agent(message: str, user_id: str, history: list = None):
                 result = db.table("events").insert(event_data).execute()
                 created_events.extend(result.data)
                 
-            # Optional: trigger background sync to Google
-            # from app.services.google_calendar import get_calendar_service
-            # try: service = get_calendar_service(user_id); service.sync_events(created_events)
-            # except: pass
+            # Trigger background sync to Google
+            try:
+                from app.services.google_calendar import get_calendar_service
+                service = get_calendar_service(user_id)
+                service.sync_events(created_events)
+            except Exception as e:
+                logger.error(f"Failed to auto-sync agent events: {e}")
 
             return {"status": "success", "events_created": len(created_events)}
         except Exception as e:
@@ -127,11 +130,13 @@ def chat_with_agent(message: str, user_id: str, history: list = None):
         Current Date: {current_date.strftime('%A, %Y-%m-%d')}
         Current Year: {current_date.year}
         User ID: {user_id}
+        User Timezone: {timezone}
         
         Your Goal: Help the user manage their schedule. Be fast, concise, and smart.
         1. INFER information. Calculate relative dates like 'next Tuesday'.
         2. Use tools to check availability before adding events if appropriate.
         3. If adding a class, default to weekly.
+        4. TIMEZONE: The user is in {timezone}. When calling tools, generate ISO 8601 timestamps with the correct offset for this timezone (e.g. for US/Pacific it might be -07:00 or -08:00). Do NOT use UTC ('Z') unless specifically asked.
         """
 
         # Construct full conversation history

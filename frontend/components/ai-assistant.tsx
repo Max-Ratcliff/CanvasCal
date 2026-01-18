@@ -23,6 +23,7 @@ export function AIAssistant() {
   const [input, setInput] = useState("")
   const [isLoading, setIsLoading] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
+  const inputRef = useRef<HTMLInputElement>(null)
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
@@ -30,6 +31,10 @@ export function AIAssistant() {
 
   useEffect(() => {
     scrollToBottom()
+    // Re-focus input after loading finishes
+    if (!isLoading) {
+      inputRef.current?.focus()
+    }
   }, [messages, isLoading])
 
   const handleSendMessage = async () => {
@@ -63,8 +68,12 @@ export function AIAssistant() {
           parts: [{ text: m.content }]
         }))
 
-      const response = await api.chatWithAgent(currentInput, history, token)
+      const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone
+      const response = await api.chatWithAgent(currentInput, history, token, timezone)
       if (response.success && response.data) {
+        // Trigger calendar refresh just in case an event was added
+        window.dispatchEvent(new Event('calendar-updated'))
+        
         setMessages((prev) => [
           ...prev,
           {
@@ -150,6 +159,7 @@ export function AIAssistant() {
           className="flex items-center gap-2 bg-white/70 rounded-full px-4 py-2"
         >
           <input
+            ref={inputRef}
             type="text"
             placeholder="Type a message..."
             value={input}
