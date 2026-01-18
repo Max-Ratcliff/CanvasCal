@@ -16,13 +16,24 @@ export interface EventData {
   weight?: number;
 }
 
-export interface AssignmentData {
-  id: string;
+export interface CanvasAssignment {
+  id: number;
   title: string;
-  course: string;
-  due_date: string;
-  completed: boolean;
-  priority: 'high' | 'medium' | 'low';
+  description: string;
+  due_at: string | null;
+  course_id: number;
+  course_name: string;
+  html_url: string;
+}
+
+export interface CanvasAnnouncement {
+  id: number;
+  title: string;
+  message: string;
+  posted_at: string;
+  author: string;
+  html_url: string;
+  context_code: string;
 }
 
 class APIService {
@@ -71,9 +82,14 @@ class APIService {
   }
 
   // Canvas endpoints
-  async getCanvasAssignments(canvasToken?: string): Promise<APIResponse<AssignmentData[]>> {
+  async getCanvasAssignments(canvasToken?: string): Promise<APIResponse<CanvasAssignment[]>> {
     const params = canvasToken ? `?canvas_token=${canvasToken}` : '';
-    return this.request(`/canvas/assignments${params}`);
+    return this.request<CanvasAssignment[]>(`/canvas/assignments${params}`);
+  }
+
+  async getCanvasAnnouncements(canvasToken?: string): Promise<APIResponse<CanvasAnnouncement[]>> {
+    const params = canvasToken ? `?canvas_token=${canvasToken}` : '';
+    return this.request<CanvasAnnouncement[]>(`/canvas/announcements${params}`);
   }
 
   async toggleAssignment(id: string) {

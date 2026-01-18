@@ -3,19 +3,30 @@ from app.schemas.response import APIResponse
 from canvasapi import Canvas
 from app.core.config import settings
 from typing import List, Dict, Any
+import logging
 
+logger = logging.getLogger("CanvasCal")
 router = APIRouter()
 
 @router.get("/assignments", response_model=APIResponse[List[Dict[str, Any]]])
-async def get_canvas_assignments(canvas_token: str):
+async def get_canvas_assignments(canvas_token: str = None):
     """
     Fetches all live deadlines from Canvas API.
     """
     if not settings.CANVAS_API_URL:
+        logger.error("CANVAS_API_URL is not configured in settings.")
         raise HTTPException(status_code=500, detail="Canvas API URL not configured.")
+    
+    # Use provided token, or fallback to server-side configured token
+    token = canvas_token or settings.CANVAS_ACCESS_TOKEN
+    
+    if not token:
+         logger.error("No Canvas token found in query param or settings.")
+         raise HTTPException(status_code=400, detail="Canvas Access Token required (either via query param or backend .env).")
 
     try:
-        canvas = Canvas(settings.CANVAS_API_URL, canvas_token)
+        logger.info(f"Connecting to Canvas at {settings.CANVAS_API_URL}")
+        canvas = Canvas(settings.CANVAS_API_URL, token)
         user = canvas.get_current_user()
         courses = user.get_courses(enrollment_state='active')
         
@@ -37,25 +48,35 @@ async def get_canvas_assignments(canvas_token: str):
                         "course_name": course.name,
                         "html_url": assign.html_url
                     })
-            except Exception:
+            except Exception as e:
                 # Some courses might not be accessible or have other issues
+                logger.warning(f"Error processing course {getattr(course, 'id', 'unknown')}: {e}")
                 continue
 
         return APIResponse(success=True, message="Assignments fetched successfully", data=all_assignments)
 
     except Exception as e:
+        logger.exception("Error fetching Canvas assignments")
         raise HTTPException(status_code=400, detail=str(e))
 
 @router.get("/announcements", response_model=APIResponse[List[Dict[str, Any]]])
-async def get_canvas_announcements(canvas_token: str):
+async def get_canvas_announcements(canvas_token: str = None):
     """
     Fetches announcements from Canvas.
     """
     if not settings.CANVAS_API_URL:
+        logger.error("CANVAS_API_URL is not configured in settings.")
         raise HTTPException(status_code=500, detail="Canvas API URL not configured.")
+        
+    # Use provided token, or fallback to server-side configured token
+    token = canvas_token or settings.CANVAS_ACCESS_TOKEN
+    
+    if not token:
+         logger.error("No Canvas token found in query param or settings.")
+         raise HTTPException(status_code=400, detail="Canvas Access Token required.")
 
     try:
-        canvas = Canvas(settings.CANVAS_API_URL, canvas_token)
+        canvas = Canvas(settings.CANVAS_API_URL, token)
         user = canvas.get_current_user()
         courses = list(user.get_courses(enrollment_state='active'))
         course_ids = [course.id for course in courses if hasattr(course, 'id')]
@@ -82,4 +103,5 @@ async def get_canvas_announcements(canvas_token: str):
         return APIResponse(success=True, message="Announcements fetched successfully", data=all_announcements)
 
     except Exception as e:
+        logger.exception("Error fetching Canvas announcements")
         raise HTTPException(status_code=400, detail=str(e))

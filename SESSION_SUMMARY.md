@@ -3,69 +3,51 @@
 **Date:** January 17, 2026
 
 ## 1. Summary of Changes
-We have successfully cleaned up the repository and established the foundation for the Canvas integration.
-
-### Git & Project Structure
-- **Cleanup:** Removed accidentally committed `node_modules` and `__pycache__` directories (~10,000 files) from git tracking.
-- **.gitignore:** Updated to correctly exclude build artifacts and environment files.
-- **Dependencies:** Added `pytest`, `httpx`, and `pydantic-settings` to `backend/requirements.txt`.
+We have successfully implemented the core Backend services and connected them to the Frontend UI.
 
 ### Backend Implementation
-- **Configuration:** Created `backend/app/core/config.py` to manage environment variables (CORS, API Keys) using Pydantic.
-- **Main App:** Refactored `backend/app/main.py` to use the centralized settings for CORS configuration.
-- **Canvas API:** Implemented the `get_canvas_assignments` logic in `backend/app/api/canvas.py` to fetch courses and assignments using the `canvasapi` library.
+- **Syllabus Parsing:** Implemented `backend/app/services/parser.py` using `PyMuPDF` for text extraction and `Google Gemini` for intelligent event parsing.
+- **Canvas Integration:** 
+    - Added `/canvas/announcements` endpoint.
+    - Updated `/canvas/assignments` to fetch all assignment buckets.
 - **Testing:** 
-    - Created `backend/tests/test_canvas.py` with unit tests for success and error scenarios (using Mocks).
-    - Verified tests pass with `pytest`.
-    - Created `backend/scripts/manual_test_canvas.py` for future live testing against a real Canvas instance.
+    - Verified Canvas integration with `backend/scripts/manual_test_canvas.py`.
+    - Added unit tests for Syllabus Parser (`backend/tests/test_syllabus.py`).
 
-## 2. How to Enable Canvas Integration (Live Test)
+### Frontend Integration
+- **API Service:** Updated `frontend/src/services/api.ts` to match the backend schema for Assignments and Announcements.
+- **Components:**
+    - Updated `AssignmentChecklist` to fetch real data from Canvas (requires `canvas_token`).
+    - Created `Announcements` component to display course announcements.
+    - Integrated both into `App.tsx`.
+- **Verification:** Successfully built the frontend (`npm run build`).
 
-To test the Canvas integration with real data, you need to configure your local environment with valid credentials.
+## 2. How to Run the Full Stack
 
-### Step 1: Create the `.env` file
-Navigate to the `backend/` directory and create a file named `.env`. You can copy the example as a starting point:
-
+### Backend
+1. Ensure your `backend/.env` is set up (see previous summary).
+2. Activate virtual environment and run the server:
 ```bash
-cd backend
-cp .env.example .env
+source backend/venv/bin/activate
+uvicorn app.main:app --reload --port 8000
 ```
 
-### Step 2: Add Credentials
-Open `backend/.env` and fill in the following values:
-
-```ini
-# backend/.env
-
-# Your Canvas Instance URL (e.g., https://canvas.instructure.com or https://university.instructure.com)
-CANVAS_API_URL=https://your-institution.instructure.com
-
-# Your Personal Access Token from Canvas (Account -> Settings -> Approved Integrations -> New Access Token)
-CANVAS_ACCESS_TOKEN=your_generated_token_here
-
-# (Optional for now) Google Gemini Key for the next phase
-GEMINI_API_KEY=your_gemini_key
-```
-
-### Step 3: Run the Live Test
-Once the `.env` file is saved, you can run the manual test script to verify the connection:
-
+### Frontend
+1. Open a new terminal.
+2. Navigate to `frontend/`.
+3. Start the dev server:
 ```bash
-# From the project root
-python3 backend/scripts/manual_test_canvas.py
+npm run dev
 ```
 
-If successful, this script will print your user name and a list of active courses/assignments.
+### Authentication (Temporary)
+For the current "MVP" state, you need to manually set your Canvas Token in the browser's Local Storage to see real data:
+1. Open the Frontend in your browser (e.g., `http://localhost:5173`).
+2. Open Developer Tools (F12) -> Console.
+3. Run: `localStorage.setItem('canvas_token', 'YOUR_ACTUAL_CANVAS_TOKEN')`
+4. Refresh the page or click the "Sync" icon.
 
 ## 3. Next Steps
-
-When you resume the session, here is the roadmap:
-
-1.  **Syllabus Parsing (Backend):**
-    - Implement `extract_text_from_pdf` in `backend/app/services/parser.py` using `PyMuPDF`.
-    - Implement `parse_syllabus_with_gemini` using `google-generativeai`.
-2.  **API Endpoint Integration:**
-    - Connect the parsing logic to the `/process/syllabus` endpoint in `backend/app/api/syllabus.py`.
-3.  **Frontend Integration:**
-    - Update the React frontend to fetch assignments from the new backend API.
-    - Build the UI to display the parsed syllabus events.
+1.  **Google Calendar Sync:** Implement the `syncCalendar` logic in `backend/app/services/scheduler.py` and `backend/app/api/calendar.py`.
+2.  **Syllabus Review UI:** Create a "Review" screen in the frontend where users can edit the parsed events before confirming the upload to their calendar.
+3.  **Campus Logic:** Implement the UCSC travel buffer logic.

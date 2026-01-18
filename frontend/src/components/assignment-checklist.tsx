@@ -1,5 +1,7 @@
-import { useState } from 'react';
-import { CheckCircle2, Circle, Calendar } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { CheckCircle2, Circle, Calendar, RefreshCw } from 'lucide-react';
+import { api, CanvasAssignment } from '../services/api';
+import { toast } from 'sonner';
 
 interface Assignment {
   id: string;
@@ -10,10 +12,42 @@ interface Assignment {
   priority: 'high' | 'medium' | 'low';
 }
 
-const mockAssignments: Assignment[] = [];
-
 export function AssignmentChecklist() {
-  const [assignments, setAssignments] = useState<Assignment[]>(mockAssignments);
+  const [assignments, setAssignments] = useState<Assignment[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  const fetchAssignments = async () => {
+    // 1. Try to get token from localStorage or env, but proceed even if null (backend might have it)
+    const token = localStorage.getItem('canvas_token') || import.meta.env.VITE_CANVAS_TOKEN;
+    
+    setLoading(true);
+    try {
+      // Pass undefined if token is null/empty string, so API service omits the param
+      const response = await api.getCanvasAssignments(token || undefined);
+      if (response.success && response.data) {
+        const mapped: Assignment[] = response.data.map((a: CanvasAssignment) => ({
+          id: String(a.id),
+          title: a.title,
+          course: a.course_name,
+          dueDate: a.due_at ? new Date(a.due_at) : new Date(), // Handle missing due dates
+          completed: false, // Default to false as API doesn't provide this yet
+          priority: 'medium' // Default priority
+        }));
+        setAssignments(mapped);
+        toast.success("Assignments synced from Canvas!");
+      }
+    } catch (error) {
+      console.error("Failed to fetch assignments:", error);
+      toast.error("Failed to sync assignments.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    // Auto-fetch on mount
+    fetchAssignments();
+  }, []);
 
   const toggleComplete = (id: string) => {
     setAssignments(prev =>
@@ -49,7 +83,17 @@ export function AssignmentChecklist() {
     <div className="bg-white rounded-lg shadow-sm p-6" style={{ borderWidth: '2px', borderColor: '#185177' }}>
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h2 style={{ color: '#185177' }}>Due Assignments</h2>
+          <div className="flex items-center gap-2">
+            <h2 style={{ color: '#185177' }}>Due Assignments</h2>
+            <button 
+              onClick={fetchAssignments} 
+              disabled={loading}
+              className="p-1 hover:bg-gray-100 rounded-full transition-colors"
+              title="Sync with Canvas"
+            >
+              <RefreshCw className={`w-4 h-4 text-[#185177] ${loading ? 'animate-spin' : ''}`} />
+            </button>
+          </div>
           <p className="text-sm mt-1" style={{ color: '#c95603' }}>
             {completedTasks} of {assignments.length} completed
           </p>

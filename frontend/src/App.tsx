@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Calendar } from './components/calendar';
 import { AIAgent } from './components/ai-agent';
 import { AssignmentChecklist } from './components/assignment-checklist';
+import { Announcements } from './components/announcements';
 import { api } from './services/api';
 import { Upload } from 'lucide-react';
 
@@ -61,6 +62,7 @@ export default function App() {
           {/* Left Column - Calendar and Checklists */}
           <div className="lg:col-span-2 space-y-6">
             <Calendar />
+            <Announcements />
             <AssignmentChecklist />
           </div>
           
