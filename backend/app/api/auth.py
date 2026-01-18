@@ -74,3 +74,32 @@ async def google_auth_exchange(request: GoogleAuthRequest, user = Depends(get_cu
     except Exception as e:
         logger.error(f"Auth Error: {e}")
         return APIResponse(success=False, message=str(e), data=None)
+
+@router.get("/integrations", response_model=APIResponse)
+async def get_integrations_status(user = Depends(get_current_user)):
+    """
+    Checks which integrations are active for the user.
+    """
+    try:
+        db = get_service_db()
+        result = db.table("user_integrations").select("*").eq("user_id", user.id).execute()
+        
+        status = {
+            "google_calendar": False,
+            "canvas": False
+        }
+        
+        if result.data:
+            row = result.data[0]
+            # Check for tokens
+            if row.get("google_access_token") and row.get("google_refresh_token"):
+                status["google_calendar"] = True
+            
+            # For canvas, we check if access token exists (either manual or oauth in future)
+            if row.get("canvas_access_token"):
+                status["canvas"] = True
+                
+        return APIResponse(success=True, message="Integrations status fetched", data=status)
+    except Exception as e:
+        logger.error(f"Integrations Check Error: {e}")
+        return APIResponse(success=False, message="Failed to check integrations", data=None)

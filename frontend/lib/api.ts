@@ -51,6 +51,10 @@ class APIService {
     }, token);
   }
 
+  async getIntegrationsStatus(token: string): Promise<APIResponse<{ google_calendar: boolean; canvas: boolean }>> {
+    return this.request('/auth/integrations', {}, token);
+  }
+
   // AI Agent endpoint
   async chatWithAgent(message: string, token: string) {
     return this.request<{ response: string }>('/agent/chat', {

@@ -1,7 +1,7 @@
 "use client"
 
-import { useRef, useState } from "react"
-import { Upload, Loader2, Calendar as CalendarIcon, LogOut, LogIn } from "lucide-react"
+import { useRef, useState, useEffect } from "react"
+import { Upload, Loader2, Calendar as CalendarIcon, LogOut, LogIn, CheckCircle2 } from "lucide-react"
 import { Calendar } from "@/components/calendar"
 import { AIAssistant } from "@/components/ai-assistant"
 import { UpcomingCard } from "@/components/upcoming-card"
@@ -16,7 +16,20 @@ export default function Home() {
   const [isUploading, setIsUploading] = useState(false)
   const [isConnectingGoogle, setIsConnectingGoogle] = useState(false)
   const [isSyncingCanvas, setIsSyncingCanvas] = useState(false)
+  const [integrations, setIntegrations] = useState({ google_calendar: false, canvas: false })
   const { session, signIn, signOut, token } = useAuth()
+
+  useEffect(() => {
+    if (token) {
+      api.getIntegrationsStatus(token)
+        .then(res => {
+          if (res.success) {
+            setIntegrations(res.data)
+          }
+        })
+        .catch(console.error)
+    }
+  }, [token])
 
   // This is for the *additional* Google Calendar permission (offline access)
   const googleLink = useGoogleLogin({
@@ -30,6 +43,7 @@ export default function Home() {
         const response = await api.googleAuth(codeResponse.code, token)
         if (response.success) {
           toast.success("Google Calendar connected!")
+          setIntegrations(prev => ({ ...prev, google_calendar: true }))
         } else {
           toast.error("Failed to connect: " + response.message)
         }
@@ -163,17 +177,26 @@ export default function Home() {
                   className="flex items-center gap-2 bg-white text-[#2d4a5e] px-4 py-2.5 rounded-xl border border-[#2d4a5e]/20 hover:bg-gray-50 transition-colors disabled:opacity-50"
                 >
                   {isSyncingCanvas ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
-                  <span className="text-sm font-medium">Sync Canvas</span>
+                  <span className="text-sm font-medium">
+                    {isSyncingCanvas ? "Syncing..." : "Sync Canvas"}
+                  </span>
                 </button>
 
-                <button 
-                  onClick={() => googleLink()}
-                  disabled={isConnectingGoogle}
-                  className="flex items-center gap-2 bg-white text-[#2d4a5e] px-4 py-2.5 rounded-xl border border-[#2d4a5e]/20 hover:bg-gray-50 transition-colors disabled:opacity-50"
-                >
-                  {isConnectingGoogle ? <Loader2 className="w-4 h-4 animate-spin" /> : <CalendarIcon className="w-4 h-4" />}
-                  <span className="text-sm font-medium">Link Google Cal</span>
-                </button>
+                {integrations.google_calendar ? (
+                  <div className="flex items-center gap-2 bg-green-50 text-green-700 px-4 py-2.5 rounded-xl border border-green-200">
+                    <CheckCircle2 className="w-4 h-4" />
+                    <span className="text-sm font-medium">Google Connected</span>
+                  </div>
+                ) : (
+                  <button 
+                    onClick={() => googleLink()}
+                    disabled={isConnectingGoogle}
+                    className="flex items-center gap-2 bg-white text-[#2d4a5e] px-4 py-2.5 rounded-xl border border-[#2d4a5e]/20 hover:bg-gray-50 transition-colors disabled:opacity-50"
+                  >
+                    {isConnectingGoogle ? <Loader2 className="w-4 h-4 animate-spin" /> : <CalendarIcon className="w-4 h-4" />}
+                    <span className="text-sm font-medium">Link Google Cal</span>
+                  </button>
+                )}
 
                 <button 
                   onClick={handleUploadClick}
