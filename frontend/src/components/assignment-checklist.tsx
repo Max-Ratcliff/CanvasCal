@@ -77,7 +77,7 @@ export function AssignmentChecklist() {
   };
 
   const getDaysUntilDue = (dueDate: Date) => {
-    const today = new Date(2026, 0, 17);
+    const today = new Date();
     const diffTime = dueDate.getTime() - today.getTime();
     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
     

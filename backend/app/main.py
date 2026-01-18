@@ -36,7 +36,20 @@ async def log_requests(request: Request, call_next):
 app.include_router(auth.router, prefix="/auth", tags=["Authentication"])
 app.include_router(syllabus.router, prefix="/process", tags=["Syllabus Processing"])
 app.include_router(canvas.router, prefix="/canvas", tags=["Canvas Integration"])
+from fastapi.staticfiles import StaticFiles
+import os
+
+# ... existing code ...
+
 app.include_router(calendar.router, prefix="/calendar", tags=["Google Calendar"])
+
+# Mount static files (PDFs)
+# Ensure the directory exists
+data_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data")
+if not os.path.exists(data_dir):
+    os.makedirs(data_dir)
+
+app.mount("/static", StaticFiles(directory=data_dir), name="static")
 
 @app.get("/")
 async def root():

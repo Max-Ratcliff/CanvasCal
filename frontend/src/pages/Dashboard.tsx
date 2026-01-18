@@ -1,20 +1,29 @@
+import { Calendar } from '@/components/calendar';
+import { AssignmentChecklist } from '@/components/assignment-checklist';
+import { Announcements } from '@/components/announcements';
+
 export default function Dashboard() {
   return (
     <div className="space-y-6">
-      <h1 className="text-3xl font-bold">Good Morning, Max</h1>
-      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-        {/* Placeholder Widgets */}
-        <div className="h-64 rounded-xl bg-card border shadow-sm p-6">
-            <h3 className="font-semibold mb-4">Assignment Checklist</h3>
-            <div className="text-muted-foreground text-sm">Loading assignments...</div>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold" style={{ color: '#185177' }}>Good Morning, Max</h1>
+          <p className="mt-1" style={{ color: '#c95603' }}>
+            You have 3 deadlines today.
+          </p>
         </div>
-        <div className="h-64 rounded-xl bg-card border shadow-sm p-6">
-            <h3 className="font-semibold mb-4">Today's Schedule</h3>
-            <div className="text-muted-foreground text-sm">No classes today.</div>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Left Column */}
+        <div className="space-y-6">
+          <Calendar />
+          <Announcements />
         </div>
-        <div className="h-64 rounded-xl bg-card border shadow-sm p-6">
-             <h3 className="font-semibold mb-4">Announcements</h3>
-             <div className="text-muted-foreground text-sm">Check syllabus for updates.</div>
+        
+        {/* Right Column */}
+        <div className="space-y-6">
+          <AssignmentChecklist />
         </div>
       </div>
     </div>

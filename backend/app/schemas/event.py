@@ -13,6 +13,12 @@ class EventSchema(BaseModel):
     location: Optional[str] = Field(None, description="Physical location or URL")
     event_type: Literal["class", "assignment", "exam", "study", "travel"] = Field(..., description="Category of the event")
     weight: Optional[float] = Field(None, description="Weight of the assignment/exam if applicable")
+    
+    # UX Metadata
+    course_id: Optional[str] = Field(None, description="ID of the associated course")
+    source: Literal["ai", "canvas", "manual"] = Field("manual", description="Origin of the event")
+    verified: bool = Field(False, description="Whether the user has confirmed this event")
+    color_hex: Optional[str] = Field(None, description="UI color for the event card")
 
 class CalendarSyncRequest(BaseModel):
     events: List[EventSchema]

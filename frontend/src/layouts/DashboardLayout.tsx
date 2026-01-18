@@ -24,66 +24,79 @@ export default function DashboardLayout() {
   ];
 
   const SidebarContent = () => (
-    <div className="flex flex-col h-full bg-sidebar-background text-sidebar-foreground border-r border-border">
-      <div className="p-6 border-b border-border">
-        <h1 className="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-indigo-500">
+    <div className="flex flex-col h-full text-white border-r border-none" style={{ backgroundColor: '#185177' }}>
+      <div className="p-6">
+        <h1 className="text-2xl font-bold text-white flex gap-2 items-center">
+          <BookOpen className="h-6 w-6" style={{ color: '#ffc971' }} />
           CanvasCal
         </h1>
       </div>
       
       <nav className="flex-1 p-4 space-y-2">
-        {navItems.map((item) => (
-          <Link to={item.path} key={item.path}>
-            <Button
-              variant={location.pathname === item.path ? "secondary" : "ghost"}
-              className="w-full justify-start gap-3 text-md"
-            >
-              <item.icon className="h-5 w-5" />
-              {item.name}
-            </Button>
-          </Link>
-        ))}
+        {navItems.map((item) => {
+          const isActive = location.pathname === item.path;
+          return (
+            <Link to={item.path} key={item.path}>
+              <div
+                className={`flex items-center gap-3 px-4 py-3 rounded-lg text-md transition-colors ${
+                  isActive 
+                    ? "font-bold shadow-md" 
+                    : "hover:bg-white/10"
+                }`}
+                style={{ 
+                  backgroundColor: isActive ? '#e2711d' : 'transparent',
+                  color: 'white'
+                }}
+              >
+                <item.icon className="h-5 w-5" />
+                {item.name}
+              </div>
+            </Link>
+          );
+        })}
       </nav>
 
-      <div className="p-4 border-t border-border">
+      <div className="p-4 border-t border-white/20">
          <div className="flex items-center gap-3 px-2">
-            <div className="h-2 w-2 rounded-full bg-green-500" title="Canvas Synced"></div>
-            <span className="text-sm text-muted-foreground">Synced</span>
+            <div className="h-2 w-2 rounded-full bg-green-400" title="Canvas Synced"></div>
+            <span className="text-sm text-white/80">Synced</span>
          </div>
       </div>
     </div>
   );
 
   return (
-    <div className="flex h-screen bg-background overflow-hidden">
+    <div className="flex h-screen overflow-hidden" style={{ backgroundColor: '#ffc971' }}>
       {/* Desktop Sidebar */}
-      <aside className="hidden md:block w-64 flex-shrink-0">
+      <aside className="hidden md:block w-64 flex-shrink-0 shadow-xl z-10">
         <SidebarContent />
       </aside>
 
       {/* Main Content Area */}
       <div className="flex flex-1 flex-col overflow-hidden">
         {/* Mobile Header */}
-        <header className="md:hidden flex items-center justify-between p-4 border-b bg-background">
+        <header className="md:hidden flex items-center justify-between p-4" style={{ backgroundColor: '#185177', color: 'white' }}>
           <Sheet>
             <SheetTrigger asChild>
-              <Button variant="ghost" size="icon">
+              <Button variant="ghost" size="icon" className="text-white hover:bg-white/10">
                 <Menu />
               </Button>
             </SheetTrigger>
-            <SheetContent side="left" className="p-0 w-64">
+            <SheetContent side="left" className="p-0 w-64 border-none">
               <SidebarContent />
             </SheetContent>
           </Sheet>
           <span className="font-bold">CanvasCal</span>
-          <Button variant="ghost" size="icon" onClick={() => setIsAgentOpen(!isAgentOpen)}>
-             <Sparkles className="h-5 w-5 text-indigo-400" />
+          <Button variant="ghost" size="icon" onClick={() => setIsAgentOpen(!isAgentOpen)} className="text-white hover:bg-white/10">
+             <Sparkles className="h-5 w-5" style={{ color: '#ffc971' }} />
           </Button>
         </header>
 
         {/* Page Content */}
         <main className="flex-1 overflow-auto p-6 scroll-smooth">
-          <Outlet />
+          <div className="max-w-7xl mx-auto h-full">
+            <Outlet />
+          </div>
         </main>
       </div>
 

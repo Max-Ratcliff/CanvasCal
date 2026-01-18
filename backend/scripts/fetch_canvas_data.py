@@ -66,7 +66,11 @@ def fetch_and_save_data():
                             end_time=assign.due_at, # Assignments are point-in-time
                             location="Canvas",
                             event_type="assignment",
-                            weight=getattr(assign, 'points_possible', 0)
+                            weight=getattr(assign, 'points_possible', 0),
+                            # New UX Metadata
+                            course_id=str(course.id),
+                            source="canvas",
+                            verified=True
                         ))
             except Exception as e:
                 logger.warning(f"  Failed to fetch assignments for {course.name}: {e}")

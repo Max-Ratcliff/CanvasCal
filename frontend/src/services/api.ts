@@ -7,6 +7,7 @@ export interface APIResponse<T = any> {
 }
 
 export interface EventData {
+  id?: string;
   summary: string;
   description?: string;
   start_time: string;
@@ -14,6 +15,7 @@ export interface EventData {
   location?: string;
   event_type: 'class' | 'assignment' | 'exam' | 'study' | 'travel';
   weight?: number;
+  color_hex?: string;
 }
 
 export interface CanvasAssignment {
@@ -82,14 +84,19 @@ class APIService {
   }
 
   // Canvas endpoints
-  async getCanvasAssignments(canvasToken?: string): Promise<APIResponse<CanvasAssignment[]>> {
-    const params = canvasToken ? `?canvas_token=${canvasToken}` : '';
-    return this.request<CanvasAssignment[]>(`/canvas/assignments${params}`);
+  async getCanvasAssignments(token?: string): Promise<APIResponse<CanvasAssignment[]>> {
+    const query = token ? `?canvas_token=${token}` : '';
+    return this.request<CanvasAssignment[]>(`/canvas/assignments${query}`);
   }
 
-  async getCanvasAnnouncements(canvasToken?: string): Promise<APIResponse<CanvasAnnouncement[]>> {
-    const params = canvasToken ? `?canvas_token=${canvasToken}` : '';
-    return this.request<CanvasAnnouncement[]>(`/canvas/announcements${params}`);
+  async getCourses(token?: string): Promise<APIResponse<any[]>> {
+    const query = token ? `?canvas_token=${token}` : '';
+    return this.request<any[]>(`/canvas/courses${query}`);
+  }
+
+  async getCanvasAnnouncements(token?: string): Promise<APIResponse<CanvasAnnouncement[]>> {
+    const query = token ? `?canvas_token=${token}` : '';
+    return this.request<CanvasAnnouncement[]>(`/canvas/announcements${query}`);
   }
 
   async importCanvasSyllabus(courseId: number, canvasToken?: string): Promise<APIResponse<EventData[]>> {

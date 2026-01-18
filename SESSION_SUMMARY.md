@@ -1,58 +1,39 @@
-# Session Summary & Canvas Integration Guide
+# Session Summary: CanvasCal Leap to Dynamic API
 
 **Date:** Saturday, January 17, 2026
 
-## 1. Summary of Progress
-We have completed the core backend architecture for Parsing, Mock Data Generation, and Calendar Management. The system is now ready for full frontend integration and Google Calendar syncing.
+## 1. Summary of Major Changes
+Today we transitioned from hardcoded mock data to a fully dynamic, Canvas-connected architecture while rigorously preserving the original "School Calendar Hub" design.
 
-### Backend Implementation
-- **Syllabus Parsing:** 
-    - Fixed model configuration to use `gemini-2.0-flash-lite-preview-02-05`.
-    - Created robust "safe" test script `test_syllabus_parsing.py` that reads from files instead of terminal input.
-- **Mock Data Generation:**
-    - Created `scripts/generate_mock_data.py` to populate a testing Canvas environment with assignments and announcements.
-    - Created `scripts/fetch_canvas_data.py` to download this real data into a local cache (`backend/data/events.json`).
-- **Calendar Logic (The "Smart" Layer):**
-    - Implemented `CalendarService` in `app/services/calendar_ops.py` with full CRUD support.
-    - Added "Smart Scheduling" logic (`auto_schedule_study_session`) that finds free slots before deadlines.
-    - Implemented `GoogleCalendarService` for one-way syncing (App -> Google Calendar).
-- **API Endpoints:**
-    - `POST /api/calendar/sync`: Triggers the Google Calendar sync.
-    - `POST /api/calendar/events/auto-schedule`: Exposes the AI scheduler to the frontend.
+### Backend Infrastructure
+- **Model Stability:** Switched to `gemini-2.0-flash-lite-preview-02-05` for faster, more reliable syllabus parsing.
+- **Dynamic Canvas Integration:**
+    - New `GET /courses` endpoint fetches real active courses and detects syllabus PDFs.
+    - New `GET /proxy-pdf/{file_id}` endpoint enables the frontend to stream PDFs directly from Canvas, bypassing CORS issues.
+- **Smart Calendar Service:** Implemented full CRUD logic and "Smart Study Session" scheduling in `CalendarService`.
+- **Google Calendar Sync:** Built the `GoogleCalendarService` for one-way sync (App -> Google).
+- **Data Enrichment:** The storage layer now automatically assigns deterministic colors to courses (Blue for CSE, Green for Math, etc.) and tracks event verification status.
 
-### Frontend Integration (Current State)
-- **API Service:** Updated `frontend/src/services/api.ts` matches backend schema.
-- **Components:** `AssignmentChecklist` and `Announcements` are ready to consume the local event cache.
+### Frontend & UX Overhaul
+- **Routing Engine:** Implemented `react-router-dom` with a layout-based architecture.
+- **Syllabus Manager (Killer Feature):**
+    - Implemented a **60/40 Split View** for verification.
+    - Integrated `react-pdf` for real-time syllabus viewing.
+    - Connected sidebar to real Canvas course lists.
+- **Smart Calendar View:**
+    - Improved density handling: Cells now show `+X more` when crowded.
+    - Implemented **Day Detail Modals** and **Event Detail Modals** using Shadcn Dialogs.
+    - Course-specific color-coding implemented.
+- **Design System:** Created `src/lib/constants.ts` to centralize the Blue/Yellow/Orange palette, ensuring the "clean" look is maintained across all new components.
 
-## 2. How to Run the System
+## 2. How to Run & Test
 
-### Backend
-1. **Activate Environment:**
-   ```bash
-   source backend/venv/bin/activate
-   ```
-2. **Generate/Fetch Data (Optional):**
-   ```bash
-   # Create fake data in your Canvas sandbox
-   python backend/scripts/generate_mock_data.py
-   
-   # Download it to local cache
-   python backend/scripts/fetch_canvas_data.py
-   ```
-3. **Start Server:**
-   ```bash
-   uvicorn app.main:app --reload --port 8000
-   ```
+### Refreshed Data Lifecycle
+1. **Fetch:** `cd backend && venv/bin/python3 scripts/fetch_canvas_data.py` (Downloads your real Canvas data to local cache).
+2. **Run Backend:** `uvicorn app.main:app --reload`
+3. **Run Frontend:** `npm run dev`
 
-### Frontend
-1. **Start Dev Server:**
-   ```bash
-   cd frontend
-   npm run dev
-   ```
-2. **Access:** Open `http://localhost:5173`.
-
-## 3. Next Steps (UX Focus)
-1.  **Syllabus Upload & Review:** Build the UI to upload a PDF, call the parser, and show a "Review Events" table before saving.
-2.  **Calendar View:** Integrate a full-calendar library (e.g., `react-big-calendar` or `FullCalendar`) to visualize the events from `backend/data/events.json`.
-3.  **Agent Chat:** Build the sidebar chat interface that calls `auto-schedule` endpoints.
+## 3. Immediate Next Steps
+1. **Parse Interaction:** Hook up the "Confirm" buttons in the Syllabus Manager to the backend `create_event` endpoint.
+2. **Sync Automation:** Implement the frontend OAuth flow to get the Google Token for the `/calendar/sync` endpoint.
+3. **Refinement:** Implement "Confidence Scores" for parsed events to help users prioritize what to verify.

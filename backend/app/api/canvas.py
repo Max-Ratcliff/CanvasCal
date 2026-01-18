@@ -13,6 +13,96 @@ import logging
 logger = logging.getLogger("CanvasCal")
 router = APIRouter()
 
+from fastapi import APIRouter, HTTPException, BackgroundTasks
+from fastapi.responses import StreamingResponse
+from app.schemas.response import APIResponse
+from canvasapi import Canvas
+from app.core.config import settings
+from app.services import parser, storage
+from app.schemas.event import EventSchema
+from typing import List, Dict, Any
+import logging
+import httpx
+
+# ... existing code ...
+
+@router.get("/courses", response_model=APIResponse[List[Dict[str, Any]]])
+async def get_canvas_courses(canvas_token: str = None):
+    """
+    Fetches active courses and checks for syllabus files.
+    """
+    token = canvas_token or settings.CANVAS_ACCESS_TOKEN
+    if not token:
+        raise HTTPException(status_code=400, detail="Canvas Access Token required.")
+
+    try:
+        canvas = Canvas(settings.CANVAS_API_URL, token)
+        user = canvas.get_current_user()
+        courses = user.get_courses(enrollment_state='active')
+        
+        course_data = []
+        for course in courses:
+            if not hasattr(course, 'name'):
+                continue
+            
+            # Try to find a syllabus file
+            syllabus_id = None
+            try:
+                # Fast check for 'syllabus' in files
+                # This might be slow if a course has thousands of files, so maybe limit?
+                # For MVP, we search 'syllabus'
+                files = course.get_files(search_term='syllabus')
+                for f in files:
+                    if f.display_name.lower().endswith('.pdf'):
+                        syllabus_id = f.id
+                        break
+            except Exception:
+                pass # Fail silently on file search
+            
+            course_data.append({
+                "id": course.id,
+                "name": course.name,
+                "course_code": getattr(course, 'course_code', ''),
+                "syllabus_file_id": syllabus_id,
+                # "status": "synced" if syllabus_id else "missing" # Simplified status logic
+            })
+            
+        return APIResponse(success=True, message="Courses fetched", data=course_data)
+
+    except Exception as e:
+        logger.exception("Error fetching courses")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/proxy-pdf/{file_id}")
+async def proxy_canvas_pdf(file_id: int):
+    """
+    Proxies a PDF file from Canvas to avoid CORS issues.
+    """
+    if not settings.CANVAS_API_URL or not settings.CANVAS_ACCESS_TOKEN:
+        raise HTTPException(status_code=500, detail="Canvas configuration missing")
+
+    try:
+        canvas = Canvas(settings.CANVAS_API_URL, settings.CANVAS_ACCESS_TOKEN)
+        # We need to find the file URL first. 
+        # canvasapi's file.get_contents() returns bytes, but for large PDFs streaming is better.
+        # file = canvas.get_file(file_id) -> url property might be temporary.
+        
+        file = canvas.get_file(file_id)
+        download_url = file.url
+
+        async def file_stream():
+            async with httpx.AsyncClient() as client:
+                async with client.stream("GET", download_url, follow_redirects=True) as resp:
+                    resp.raise_for_status()
+                    async for chunk in resp.aiter_bytes():
+                        yield chunk
+
+        return StreamingResponse(file_stream(), media_type="application/pdf")
+
+    except Exception as e:
+        logger.error(f"Error proxying PDF {file_id}: {e}")
+        raise HTTPException(status_code=404, detail="File not found or inaccessible")
+
 @router.post("/import-syllabus/{course_id}", response_model=APIResponse[List[EventSchema]])
 async def import_canvas_syllabus(course_id: int, canvas_token: str = None):
     """
