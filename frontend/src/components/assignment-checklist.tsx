@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { CheckCircle2, Circle, Calendar, RefreshCw } from 'lucide-react';
+import { CheckCircle2, Circle, Calendar, RefreshCw, Download } from 'lucide-react';
 import { api, CanvasAssignment } from '../services/api';
 import { toast } from 'sonner';
 
@@ -7,6 +7,7 @@ interface Assignment {
   id: string;
   title: string;
   course: string;
+  courseId?: string;
   dueDate: Date;
   completed: boolean;
   priority: 'high' | 'medium' | 'low';
@@ -15,32 +16,48 @@ interface Assignment {
 export function AssignmentChecklist() {
   const [assignments, setAssignments] = useState<Assignment[]>([]);
   const [loading, setLoading] = useState(false);
+  const [importing, setImporting] = useState<string | null>(null);
 
   const fetchAssignments = async () => {
-    // 1. Try to get token from localStorage or env, but proceed even if null (backend might have it)
+    // ... (same as before)
     const token = localStorage.getItem('canvas_token') || import.meta.env.VITE_CANVAS_TOKEN;
     
     setLoading(true);
     try {
-      // Pass undefined if token is null/empty string, so API service omits the param
       const response = await api.getCanvasAssignments(token || undefined);
       if (response.success && response.data) {
-        const mapped: Assignment[] = response.data.map((a: CanvasAssignment) => ({
+        const mapped: Assignment[] = response.data.map((a: any) => ({
           id: String(a.id),
           title: a.title,
           course: a.course_name,
-          dueDate: a.due_at ? new Date(a.due_at) : new Date(), // Handle missing due dates
-          completed: false, // Default to false as API doesn't provide this yet
-          priority: 'medium' // Default priority
+          courseId: String(a.course_id),
+          dueDate: a.due_at ? new Date(a.due_at) : new Date(),
+          completed: false,
+          priority: 'medium'
         }));
         setAssignments(mapped);
-        toast.success("Assignments synced from Canvas!");
       }
     } catch (error) {
       console.error("Failed to fetch assignments:", error);
-      toast.error("Failed to sync assignments.");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleImportSyllabus = async (courseId: string, courseName: string) => {
+    const token = localStorage.getItem('canvas_token') || import.meta.env.VITE_CANVAS_TOKEN;
+    setImporting(courseId);
+    try {
+      toast.info(`Searching for syllabus in ${courseName}...`);
+      const response = await api.importCanvasSyllabus(Number(courseId), token || undefined);
+      if (response.success) {
+        toast.success(`Successfully imported ${response.data.length} events from ${courseName} syllabus!`);
+        // We could refresh calendar here
+      }
+    } catch (error: any) {
+      toast.error(error.message || `Failed to import syllabus for ${courseName}`);
+    } finally {
+      setImporting(null);
     }
   };
 
@@ -156,7 +173,20 @@ export function AssignmentChecklist() {
                     </span>
                   </div>
                   
-                  <p className="text-sm" style={{ color: '#c95603' }}>{assignment.course}</p>
+                  <div className="flex items-center justify-between mt-1">
+                    <p className="text-sm" style={{ color: '#c95603' }}>{assignment.course}</p>
+                    {assignment.courseId && (
+                      <button
+                        onClick={() => handleImportSyllabus(assignment.courseId!, assignment.course)}
+                        disabled={!!importing}
+                        className="flex items-center gap-1 text-xs font-medium hover:underline disabled:opacity-50"
+                        style={{ color: '#185177' }}
+                      >
+                        <Download className={`w-3 h-3 ${importing === assignment.courseId ? 'animate-bounce' : ''}`} />
+                        {importing === assignment.courseId ? 'Importing...' : 'Import Syllabus'}
+                      </button>
+                    )}
+                  </div>
                   
                   <div className="flex items-center gap-2 text-sm mt-2" style={{ color: '#666' }}>
                     <Calendar className="w-4 h-4" style={{ color: '#185177' }} />

@@ -37,6 +37,26 @@ async def test_live_canvas():
             
             print(f"\n[Course] {course.name} (ID: {course.id})")
             
+            # Check for direct Syllabus Body (HTML)
+            if hasattr(course, 'syllabus_body') and course.syllabus_body:
+                print(f"  - Syllabus Body Found: Yes ({len(course.syllabus_body)} chars)")
+            else:
+                print(f"  - Syllabus Body Found: No")
+
+            # Check for Syllabus Files
+            try:
+                # Search for files with 'syllabus' in the name
+                files = course.get_files(search_term='syllabus')
+                s_files = list(files)
+                if s_files:
+                    for f in s_files:
+                        ctype = getattr(f, 'content-type', 'unknown')
+                        print(f"  - Syllabus File Found: {f.display_name} (ID: {f.id}, Type: {ctype})")
+                else:
+                    print("  - No files named 'syllabus' found.")
+            except Exception as e:
+                print(f"  - Could not search files: {e}")
+
             try:
                 assignments = course.get_assignments() # fetch all assignments
                 a_count = 0

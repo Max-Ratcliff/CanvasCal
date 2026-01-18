@@ -92,6 +92,13 @@ class APIService {
     return this.request<CanvasAnnouncement[]>(`/canvas/announcements${params}`);
   }
 
+  async importCanvasSyllabus(courseId: number, canvasToken?: string): Promise<APIResponse<EventData[]>> {
+    const params = canvasToken ? `?canvas_token=${canvasToken}` : '';
+    return this.request<EventData[]>(`/canvas/import-syllabus/${courseId}${params}`, {
+      method: 'POST'
+    });
+  }
+
   async toggleAssignment(id: string) {
     return this.request(`/canvas/assignments/${id}/toggle`, {
       method: 'PATCH',

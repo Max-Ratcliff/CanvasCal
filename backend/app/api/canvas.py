@@ -1,12 +1,74 @@
-from fastapi import APIRouter, HTTPException
+import io
+from fastapi import APIRouter, HTTPException, BackgroundTasks
 from app.schemas.response import APIResponse
 from canvasapi import Canvas
 from app.core.config import settings
+from app.services import parser
+from app.schemas.event import EventSchema
 from typing import List, Dict, Any
+import logging
+
 import logging
 
 logger = logging.getLogger("CanvasCal")
 router = APIRouter()
+
+@router.post("/import-syllabus/{course_id}", response_model=APIResponse[List[EventSchema]])
+async def import_canvas_syllabus(course_id: int, canvas_token: str = None):
+    """
+    Finds a syllabus file in the course and parses it.
+    """
+    token = canvas_token or settings.CANVAS_ACCESS_TOKEN
+    if not token:
+        raise HTTPException(status_code=400, detail="Canvas Access Token required.")
+
+    try:
+        canvas = Canvas(settings.CANVAS_API_URL, token)
+        course = canvas.get_course(course_id)
+        
+        # 1. Try to find a syllabus file
+        files = course.get_files(search_term='syllabus')
+        syllabus_file = None
+        for f in files:
+            if f.display_name.lower().endswith('.pdf'):
+                syllabus_file = f
+                break
+        
+        if not syllabus_file:
+            # Try a broader search if nothing found
+            files = course.get_files()
+            for f in files:
+                if 'syllabus' in f.display_name.lower() and f.display_name.lower().endswith('.pdf'):
+                    syllabus_file = f
+                    break
+
+        if not syllabus_file:
+            raise HTTPException(status_code=404, detail="No PDF syllabus found in Canvas course files.")
+
+        # 2. Download the file
+        logger.info(f"Downloading syllabus: {syllabus_file.display_name}")
+        content = syllabus_file.get_contents(binary=True)
+        
+        # 3. Extract text (using fitz from memory)
+        import fitz
+        doc = fitz.open(stream=content, filetype="pdf")
+        text = ""
+        for page in doc:
+            text += page.get_text() + "\n"
+        
+        if not text.strip():
+            raise HTTPException(status_code=400, detail="Could not extract text from the syllabus file.")
+
+        # 4. Parse with Gemini
+        events = parser.parse_syllabus_with_gemini(text)
+        
+        return APIResponse(success=True, message=f"Imported from {syllabus_file.display_name}", data=events)
+
+    except HTTPException as he:
+        raise he
+    except Exception as e:
+        logger.exception("Failed to import syllabus from Canvas")
+        raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/assignments", response_model=APIResponse[List[Dict[str, Any]]])
 async def get_canvas_assignments(canvas_token: str = None):

@@ -11,7 +11,7 @@ export interface CalendarEvent {
 }
 
 export function Calendar() {
-  const [currentDate, setCurrentDate] = useState(new Date(2026, 0, 1));
+  const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(null);
   const [events, setEvents] = useState<CalendarEvent[]>([]);
   const [loading, setLoading] = useState(false);
@@ -23,22 +23,46 @@ export function Calendar() {
 
   const fetchEvents = async () => {
     setLoading(true);
+    const token = localStorage.getItem('canvas_token') || import.meta.env.VITE_CANVAS_TOKEN;
+
     try {
-      const response = await api.getEvents();
-      if (response.success && response.data) {
-        // Transform backend events to frontend format
-        const transformedEvents = response.data.map((event: any) => ({
+      // Fetch both syllabus events and canvas assignments in parallel
+      const [eventsResponse, assignmentsResponse] = await Promise.all([
+        api.getEvents(),
+        api.getCanvasAssignments(token || undefined)
+      ]);
+
+      let allEvents: CalendarEvent[] = [];
+
+      // Process Syllabus Events
+      if (eventsResponse.success && eventsResponse.data) {
+        allEvents = eventsResponse.data.map((event: any) => ({
           id: event.id || Math.random().toString(),
           title: event.summary || 'Untitled Event',
           date: new Date(event.start_time),
           type: event.event_type || 'event',
           description: event.description || '',
         }));
-        setEvents(transformedEvents);
       }
+
+      // Process Canvas Assignments
+      if (assignmentsResponse.success && assignmentsResponse.data) {
+        const assignmentEvents: CalendarEvent[] = assignmentsResponse.data.map((a: any) => ({
+          id: String(a.id),
+          title: a.title,
+          date: a.due_at ? new Date(a.due_at) : new Date(), // Use today if no date, or handle differently
+          type: 'assignment',
+          description: `${a.course_name} - ${a.description || ''}`,
+        }));
+        allEvents = [...allEvents, ...assignmentEvents];
+      }
+
+      setEvents(allEvents);
+
     } catch (error) {
       console.error('Failed to fetch events:', error);
-      // Keep empty events array on error
+      // Don't clear events if partial failure, or maybe just show what we have? 
+      // ideally we handle them separately but for now:
       setEvents([]);
     } finally {
       setLoading(false);
