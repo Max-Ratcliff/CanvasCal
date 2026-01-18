@@ -1,29 +1,50 @@
 "use client"
 
 import { useRef, useState, useEffect } from "react"
-import { Upload, Loader2, Calendar as CalendarIcon, LogOut, LogIn, CheckCircle2 } from "lucide-react"
+import { 
+  Upload, 
+  Loader2, 
+  Calendar as CalendarIcon, 
+  LogOut, 
+  LogIn, 
+  CheckCircle2, 
+  LayoutDashboard, 
+  Plus, 
+  BookOpen 
+} from "lucide-react"
 import { Calendar } from "@/components/calendar"
-import { AIAssistant } from "@/components/ai-assistant"
 import { UpcomingCard } from "@/components/upcoming-card"
-import { BananaSlugBackground } from "@/components/banana-slug-background"
+import { AIAssistant } from "@/components/ai-assistant"
 import { SyllabusViewer } from "@/components/syllabus-viewer"
+import { BananaSlugBackground } from "@/components/banana-slug-background"
+import { ThemeProvider } from "@/components/theme-provider"
+import { useAuth } from "./providers"
 import { api } from "@/lib/api"
 import { toast } from "sonner"
-import { useGoogleLogin } from "@react-oauth/google"
-import { useAuth } from "./providers"
-import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog"
 
 export default function Home() {
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const [isSyncingCanvas, setIsSyncingCanvas] = useState(false)
   const [isUploading, setIsUploading] = useState(false)
   const [isConnectingGoogle, setIsConnectingGoogle] = useState(false)
-  const [isSyncingCanvas, setIsSyncingCanvas] = useState(false)
-  const [isSyllabusOpen, setIsSyllabusOpen] = useState(false)
+  const [showSyllabusViewer, setShowSyllabusViewer] = useState(false)
   const [showCanvasConnect, setShowCanvasConnect] = useState(false)
   const [canvasUrl, setCanvasUrl] = useState("https://canvas.instructure.com")
   const [canvasToken, setCanvasToken] = useState("")
   const [integrations, setIntegrations] = useState({ google_calendar: false, canvas: false })
+  const [cachedCourses, setCachedCourses] = useState<any[]>([])
   const { session, signIn, signOut, token } = useAuth()
+
+  const loginWithGoogle = () => {
+    setIsConnectingGoogle(true)
+    api.getGoogleAuthUrl(token || "")
+      .then(res => {
+        if (res.success && res.data?.url) {
+          window.location.href = res.data.url
+        }
+      })
+      .finally(() => setIsConnectingGoogle(false))
+  }
 
   useEffect(() => {
     if (token) {
@@ -31,6 +52,12 @@ export default function Home() {
         .then(res => {
           if (res.success) {
             setIntegrations(res.data)
+            // If canvas is connected, pre-fetch courses
+            if (res.data.canvas) {
+              api.getCanvasCourses(token).then(courseRes => {
+                if (courseRes.success) setCachedCourses(courseRes.data)
+              })
+            }
           }
         })
         .catch(console.error)
@@ -79,36 +106,6 @@ export default function Home() {
       } finally {
           setIsSyncingCanvas(false)
       }
-  }
-
-  const handleUploadClick = () => {
-    if (!token) {
-        toast.error("Please sign in first")
-        return
-    }
-    fileInputRef.current?.click()
-  }
-
-  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (!file || !token) return
-
-    setIsUploading(true)
-    try {
-      const response = await api.uploadSyllabus(file, token)
-      if (response.success) {
-        toast.success("Syllabus processed successfully!")
-        window.location.reload()
-      } else {
-        toast.error(response.message || "Failed to process syllabus")
-      }
-    } catch (error) {
-      console.error("Upload error:", error)
-      toast.error("An error occurred during upload")
-    } finally {
-      setIsUploading(false)
-      if (fileInputRef.current) fileInputRef.current.value = ""
-    }
   }
 
   const [email, setEmail] = useState("")
@@ -216,14 +213,6 @@ export default function Home() {
             </div>
           </div>
           
-          <input 
-            type="file" 
-            ref={fileInputRef} 
-            onChange={handleFileChange} 
-            accept=".pdf" 
-            className="hidden" 
-          />
-          
           <div className="flex items-center gap-3">
             {!session ? (
               <form onSubmit={handleSignIn} className="flex items-center gap-2">
@@ -246,6 +235,14 @@ export default function Home() {
               </form>
             ) : (
                 <>
+                <button 
+                  onClick={() => setShowSyllabusViewer(true)}
+                  className="flex items-center gap-2 bg-white text-[#2d4a5e] px-4 py-2.5 rounded-xl border border-[#2d4a5e]/20 hover:bg-gray-50 transition-colors"
+                >
+                  <BookOpen className="w-4 h-4" />
+                  <span className="text-sm font-medium">Syllabus Hub</span>
+                </button>
+
                 <button 
                   onClick={handleCanvasSync}
                   disabled={isSyncingCanvas}
@@ -273,15 +270,6 @@ export default function Home() {
                   </button>
                 )}
 
-                <button 
-                  onClick={handleUploadClick}
-                  disabled={isUploading}
-                  className="flex items-center gap-2 bg-[#2d4a5e] text-white px-4 py-2.5 rounded-xl hover:bg-[#1e3a4e] transition-colors disabled:opacity-50"
-                >
-                  {isUploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
-                  <span className="text-sm font-medium">{isUploading ? "Processing..." : "Upload Syllabus"}</span>
-                </button>
-                
                 <button 
                   onClick={() => signOut()}
                   className="flex items-center gap-2 bg-red-50 text-red-600 px-3 py-2.5 rounded-xl hover:bg-red-100 transition-colors border border-red-200"
@@ -316,6 +304,18 @@ export default function Home() {
           </div>
         </div>
       </main>
+
+      {/* Syllabus Intelligence Modal */}
+      {showSyllabusViewer && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 backdrop-blur-md p-4 md:p-10">
+          <div className="bg-[#FFECD1] w-full max-w-6xl h-full max-h-[90vh] rounded-[2rem] shadow-2xl border border-white/50 overflow-hidden animate-in zoom-in-95 duration-300">
+             <SyllabusViewer 
+                courses={cachedCourses}
+                onClose={() => setShowSyllabusViewer(false)} 
+             />
+          </div>
+        </div>
+      )}
     </div>
   )
 }

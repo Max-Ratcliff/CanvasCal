@@ -73,3 +73,32 @@ CREATE TRIGGER update_user_integrations_updated_at
   BEFORE UPDATE ON user_integrations
   FOR EACH ROW
   EXECUTE PROCEDURE handle_updated_at();
+
+-- Table for storing AI-parsed syllabus insights
+CREATE TABLE IF NOT EXISTS syllabi (
+  id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+  user_id uuid REFERENCES auth.users(id) ON DELETE CASCADE,
+  course_name text NOT NULL,
+  raw_text text,
+  ai_insights jsonb, -- grading_scale, office_hours, key_policies, summary
+  created_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL,
+  updated_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL,
+  
+  UNIQUE(user_id, course_name)
+);
+
+-- Enable RLS for syllabi
+ALTER TABLE syllabi ENABLE ROW LEVEL SECURITY;
+
+-- RLS Policy for Syllabi
+CREATE POLICY "Users can manage their own syllabi"
+ON syllabi
+FOR ALL
+USING (auth.uid() = user_id)
+WITH CHECK (auth.uid() = user_id);
+
+-- Trigger for syllabi updated_at
+CREATE TRIGGER update_syllabi_updated_at
+  BEFORE UPDATE ON syllabi
+  FOR EACH ROW
+  EXECUTE PROCEDURE handle_updated_at();

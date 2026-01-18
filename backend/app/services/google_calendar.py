@@ -138,17 +138,31 @@ class GoogleCalendarService:
         - UPDATE (if google_event_id is set)
         """
         synced_count = 0
+        from datetime import datetime, timedelta
 
         for event in events:
-            gcal_event = {
-                'summary': event['summary'],
-                'location': event.get('location', ''),
-                'description': event.get('description', ''),
-                'start': {'dateTime': event['start_time'], 'timeZone': 'UTC'},
-                'end': {'dateTime': event['end_time'], 'timeZone': 'UTC'},
-            }
-
             try:
+                # 1. Robust Time Validation
+                start_str = event['start_time']
+                end_str = event['end_time']
+                
+                # Parse to compare
+                start_dt = datetime.fromisoformat(start_str.replace('Z', '+00:00'))
+                end_dt = datetime.fromisoformat(end_str.replace('Z', '+00:00'))
+                
+                # If range is zero or negative, force a 30 min duration
+                if end_dt <= start_dt:
+                    end_dt = start_dt + timedelta(minutes=30)
+                    end_str = end_dt.isoformat()
+
+                gcal_event = {
+                    'summary': event['summary'],
+                    'location': event.get('location', ''),
+                    'description': event.get('description', ''),
+                    'start': {'dateTime': start_str, 'timeZone': 'UTC'},
+                    'end': {'dateTime': end_str, 'timeZone': 'UTC'},
+                }
+
                 if event.get("google_event_id"):
                     # UPDATE
                     self.service.events().update(
@@ -170,7 +184,9 @@ class GoogleCalendarService:
                 
                 synced_count += 1
             except Exception as e:
-                logger.error(f"Failed to sync event {event['id']}: {e}")
+                logger.error(f"Failed to sync event {event.get('id', 'unknown')}: {e}")
+                # Continue to next event instead of crashing the whole sync
+                continue
 
         return synced_count
 

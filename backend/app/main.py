@@ -34,7 +34,7 @@ async def log_requests(request: Request, call_next):
     return response
 
 app.include_router(auth.router, prefix="/auth", tags=["Authentication"])
-app.include_router(syllabus.router, prefix="/process", tags=["Syllabus Processing"])
+app.include_router(syllabus.router, prefix="/syllabus", tags=["Syllabus Processing"])
 app.include_router(canvas.router, prefix="/canvas", tags=["Canvas Integration"])
 app.include_router(calendar.router, prefix="/calendar", tags=["Google Calendar"])
 app.include_router(agent.router, prefix="/agent", tags=["AI Agent"])

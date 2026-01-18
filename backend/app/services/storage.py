@@ -10,9 +10,9 @@ DATA_FILE = "backend/data/events.json"
 # Set to True to enable Supabase as primary storage
 USE_SUPABASE = True
 
-def load_events() -> List[EventSchema]:
+def load_events(user_id: str = None) -> List[EventSchema]:
     if USE_SUPABASE and get_db():
-        return SupabaseStorage.load_events()
+        return SupabaseStorage.load_events(user_id=user_id)
         
     if not os.path.exists(DATA_FILE):
         return []
@@ -68,3 +68,12 @@ def clear_events():
     if os.path.exists(DATA_FILE):
         os.remove(DATA_FILE)
     # Supabase clear not implemented for safety
+
+def save_syllabus(user_id: str, course_name: str, raw_text: str, insights: Dict, pdf_url: str = None):
+    if USE_SUPABASE and get_db():
+        SupabaseStorage.save_syllabus(user_id, course_name, raw_text, insights, pdf_url=pdf_url)
+
+def get_syllabi(user_id: str):
+    if USE_SUPABASE and get_db():
+        return SupabaseStorage.get_syllabi(user_id)
+    return []

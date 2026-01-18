@@ -9,6 +9,7 @@ from app.core.security import get_current_user
 from app.db import get_db
 from app.services.google_calendar import get_calendar_service
 from typing import List, Dict, Any, Optional
+from datetime import datetime, timedelta
 import logging
 import uuid
 import httpx
@@ -170,22 +171,121 @@ async def process_syllabus_for_course(course, user_id: str):
 
         # Mock UploadFile
         from starlette.datastructures import UploadFile as StarletteUploadFile
-        mock_file = StarletteUploadFile(filename=syllabus_file.display_name, file=io.BytesIO(pdf_content))
+        syllabus_mock_file = StarletteUploadFile(filename=syllabus_file.display_name, file=io.BytesIO(pdf_content))
         
-        text = await parser.extract_text_from_pdf(mock_file)
-        events = parser.parse_syllabus_with_gemini(text)
+        text = await parser.extract_text_from_pdf(syllabus_mock_file)
+        
+        # New parser returns {"course_name": ..., "events": [...], "insights": {}}
+        result = parser.parse_syllabus_with_gemini(text)
+        
+        events = result.get("events", [])
+        insights = result.get("insights", {})
+        # Force use of the official Canvas name so the frontend can match it to the sidebar entry
+        official_course_name = getattr(course, 'name', f"Course {course.id}")
         
         # Enrich events
+        processed_events = []
         for e in events:
+            # e is already an EventSchema object from the parser
             e.course_id = str(course.id)
             e.source = "ai_syllabus"
-            e.verified = False # Needs user verification
+            e.verified = False
             e.description = f"Extracted from {syllabus_file.display_name}: {e.description or ''}"
+            processed_events.append(e)
             
-        return events
+        # Store syllabus record in DB for the Viewer
+        from app.services.storage import save_syllabus
+        # We store the Canvas file ID so we can proxy it on demand
+        save_syllabus(
+            user_id, 
+            official_course_name, 
+            text[:50000], 
+            insights, 
+            pdf_url=str(syllabus_file.id) # Use ID as a reference
+        )
+            
+        return processed_events
     except Exception as e:
-        logger.warning(f"Syllabus processing failed for course {course.id}: {e}")
-        return []
+        logger.error(f"Syllabus processing failed for course {course.id}: {e}")
+        raise e
+
+@router.get("/file/{file_id}")
+async def proxy_canvas_file(file_id: int, user = Depends(get_current_user)):
+    """
+    Proxies a file from Canvas on demand so we don't store it.
+    """
+    try:
+        canvas = get_canvas_client(user.id)
+        file = canvas.get_file(file_id)
+        
+        async with httpx.AsyncClient() as client:
+            # We must follow redirects as Canvas URLs point to S3
+            res = await client.get(file.url, follow_redirects=True)
+            res.raise_for_status()
+            
+            from fastapi.responses import Response
+            return Response(
+                content=res.content,
+                media_type="application/pdf",
+                headers={"Content-Disposition": f"inline; filename={file.display_name}"}
+            )
+    except Exception as e:
+        logger.error(f"File Proxy Error: {e}")
+        raise HTTPException(status_code=500, detail="Failed to fetch file from Canvas")
+
+@router.get("/courses", response_model=APIResponse)
+async def get_canvas_courses(user = Depends(get_current_user)):
+    """
+    Fetches list of active courses and checks for syllabus files.
+    """
+    try:
+        canvas = get_canvas_client(user.id)
+        canvas_user = canvas.get_current_user()
+        courses = canvas_user.get_courses(enrollment_state='active')
+        
+        course_list = []
+        for course in courses:
+            # Check for syllabus file
+            files = course.get_files()
+            syllabus_file_id = None
+            for f in files:
+                if "syllabus" in f.display_name.lower() and f.display_name.endswith(".pdf"):
+                    syllabus_file_id = f.id
+                    break
+            
+            course_list.append({
+                "id": course.id,
+                "name": getattr(course, 'name', f"Course {course.id}"),
+                "syllabus_file_id": syllabus_file_id
+            })
+            
+        return APIResponse(success=True, message="Courses fetched", data=course_list)
+    except Exception as e:
+        logger.error(f"Canvas Courses Error: {e}")
+        return APIResponse(success=False, message=str(e), data=None)
+
+@router.post("/process-course/{course_id}", response_model=APIResponse)
+async def process_specific_course(course_id: int, user = Depends(get_current_user)):
+    """
+    Triggers AI processing for a specific course on-demand.
+    """
+    try:
+        canvas = get_canvas_client(user.id)
+        course = canvas.get_course(course_id)
+        
+        # This is the existing logic but for one course
+        events = await process_syllabus_for_course(course, user.id)
+        
+        # Trigger Google Sync for found events
+        if events:
+            from app.services.google_calendar import get_calendar_service
+            gcal = get_calendar_service(user.id)
+            gcal.sync_events([e.model_dump(mode='json') for e in events])
+
+        return APIResponse(success=True, message="Course processed successfully", data=None)
+    except Exception as e:
+        logger.error(f"Process Course Error: {e}")
+        return APIResponse(success=False, message=str(e), data=None)
 
 @router.post("/sync", response_model=APIResponse)
 async def sync_canvas_data(

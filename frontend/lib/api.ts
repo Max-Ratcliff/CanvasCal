@@ -82,6 +82,16 @@ class APIService {
     }, token);
   }
 
+  async getCanvasCourses(token: string): Promise<APIResponse<any[]>> {
+    return this.request<any[]>('/canvas/courses', {}, token);
+  }
+
+  async processCourse(courseId: number, token: string): Promise<APIResponse<any>> {
+    return this.request<any>(`/canvas/process-course/${courseId}`, {
+      method: 'POST',
+    }, token);
+  }
+
   // Calendar endpoints
   async getEvents(token: string, start?: string, end?: string): Promise<APIResponse<any[]>> {
     let params = '';
