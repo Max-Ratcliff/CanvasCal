@@ -1,0 +1,52 @@
+{
+    "assignments": [
+        {
+            "id": 61338373,
+            "title": "Assignment 1",
+            "due_at": "2026-01-20T06:59:59Z",
+            "course": "CSE 101",
+            "url": "https://canvas.instructure.com/courses/13897619/assignments/61338373"
+        },
+        {
+            "id": 61338811,
+            "title": "Read Chapter 1",
+            "due_at": "2026-01-20T00:14:20Z",
+            "course": "CSE 101",
+            "url": "https://canvas.instructure.com/courses/13897619/assignments/61338811"
+        },
+        {
+            "id": 61338813,
+            "title": "Midterm Exam",
+            "due_at": "2026-02-01T00:14:20Z",
+            "course": "CSE 101",
+            "url": "https://canvas.instructure.com/courses/13897619/assignments/61338813"
+        },
+        {
+            "id": 61338815,
+            "title": "Final Project Proposal",
+            "due_at": "2026-02-17T00:14:20Z",
+            "course": "CSE 101",
+            "url": "https://canvas.instructure.com/courses/13897619/assignments/61338815"
+        }
+    ],
+    "announcements": [
+        {
+            "id": 27874375,
+            "title": "Midterm Date Change",
+            "posted_at": "2026-01-18T01:14:22Z",
+            "author": "Max Ratcliff"
+        },
+        {
+            "id": 27874373,
+            "title": "Welcome to the Course!",
+            "posted_at": "2026-01-18T01:14:21Z",
+            "author": "Max Ratcliff"
+        },
+        {
+            "id": 27874227,
+            "title": "TEST AnNOUNCEMENTS",
+            "posted_at": "2026-01-17T23:14:41Z",
+            "author": "Max Ratcliff"
+        }
+    ]
+}

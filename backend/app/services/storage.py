@@ -21,11 +21,20 @@ def save_events(new_events: List[EventSchema]):
     # Convert to dict for JSON serialization
     all_events = [e.model_dump() for e in existing] + [e.model_dump() for e in new_events]
     
+    save_events_replace([EventSchema(**e) for e in all_events])
+
+def save_events_replace(events: List[EventSchema]):
+    """
+    Overwrites the JSON file with the provided list of events.
+    """
     # Ensure the directory exists
     os.makedirs(os.path.dirname(DATA_FILE), exist_ok=True)
     
+    # Convert to dict for JSON serialization
+    data = [e.model_dump() for e in events]
+    
     with open(DATA_FILE, "w") as f:
-        json.dump(all_events, f, default=str)
+        json.dump(data, f, default=str, indent=4)
 
 def clear_events():
     if os.path.exists(DATA_FILE):

@@ -1,53 +1,58 @@
 # Session Summary & Canvas Integration Guide
 
-**Date:** January 17, 2026
+**Date:** Saturday, January 17, 2026
 
-## 1. Summary of Changes
-We have successfully implemented the core Backend services and connected them to the Frontend UI.
+## 1. Summary of Progress
+We have completed the core backend architecture for Parsing, Mock Data Generation, and Calendar Management. The system is now ready for full frontend integration and Google Calendar syncing.
 
 ### Backend Implementation
-- **Syllabus Parsing:** Implemented `backend/app/services/parser.py` using `PyMuPDF` for text extraction and `Google Gemini` for intelligent event parsing.
-- **Canvas Integration:** 
-    - Added `/canvas/announcements` endpoint.
-    - Updated `/canvas/assignments` to fetch all assignment buckets.
-- **Testing:** 
-    - Verified Canvas integration with `backend/scripts/manual_test_canvas.py`.
-    - Added unit tests for Syllabus Parser (`backend/tests/test_syllabus.py`).
+- **Syllabus Parsing:** 
+    - Fixed model configuration to use `gemini-2.0-flash-lite-preview-02-05`.
+    - Created robust "safe" test script `test_syllabus_parsing.py` that reads from files instead of terminal input.
+- **Mock Data Generation:**
+    - Created `scripts/generate_mock_data.py` to populate a testing Canvas environment with assignments and announcements.
+    - Created `scripts/fetch_canvas_data.py` to download this real data into a local cache (`backend/data/events.json`).
+- **Calendar Logic (The "Smart" Layer):**
+    - Implemented `CalendarService` in `app/services/calendar_ops.py` with full CRUD support.
+    - Added "Smart Scheduling" logic (`auto_schedule_study_session`) that finds free slots before deadlines.
+    - Implemented `GoogleCalendarService` for one-way syncing (App -> Google Calendar).
+- **API Endpoints:**
+    - `POST /api/calendar/sync`: Triggers the Google Calendar sync.
+    - `POST /api/calendar/events/auto-schedule`: Exposes the AI scheduler to the frontend.
 
-### Frontend Integration
-- **API Service:** Updated `frontend/src/services/api.ts` to match the backend schema for Assignments and Announcements.
-- **Components:**
-    - Updated `AssignmentChecklist` to fetch real data from Canvas (requires `canvas_token`).
-    - Created `Announcements` component to display course announcements.
-    - Integrated both into `App.tsx`.
-- **Verification:** Successfully built the frontend (`npm run build`).
+### Frontend Integration (Current State)
+- **API Service:** Updated `frontend/src/services/api.ts` matches backend schema.
+- **Components:** `AssignmentChecklist` and `Announcements` are ready to consume the local event cache.
 
-## 2. How to Run the Full Stack
+## 2. How to Run the System
 
 ### Backend
-1. Ensure your `backend/.env` is set up (see previous summary).
-2. Activate virtual environment and run the server:
-```bash
-source backend/venv/bin/activate
-uvicorn app.main:app --reload --port 8000
-```
+1. **Activate Environment:**
+   ```bash
+   source backend/venv/bin/activate
+   ```
+2. **Generate/Fetch Data (Optional):**
+   ```bash
+   # Create fake data in your Canvas sandbox
+   python backend/scripts/generate_mock_data.py
+   
+   # Download it to local cache
+   python backend/scripts/fetch_canvas_data.py
+   ```
+3. **Start Server:**
+   ```bash
+   uvicorn app.main:app --reload --port 8000
+   ```
 
 ### Frontend
-1. Open a new terminal.
-2. Navigate to `frontend/`.
-3. Start the dev server:
-```bash
-npm run dev
-```
+1. **Start Dev Server:**
+   ```bash
+   cd frontend
+   npm run dev
+   ```
+2. **Access:** Open `http://localhost:5173`.
 
-### Authentication (Temporary)
-For the current "MVP" state, you need to manually set your Canvas Token in the browser's Local Storage to see real data:
-1. Open the Frontend in your browser (e.g., `http://localhost:5173`).
-2. Open Developer Tools (F12) -> Console.
-3. Run: `localStorage.setItem('canvas_token', 'YOUR_ACTUAL_CANVAS_TOKEN')`
-4. Refresh the page or click the "Sync" icon.
-
-## 3. Next Steps
-1.  **Google Calendar Sync:** Implement the `syncCalendar` logic in `backend/app/services/scheduler.py` and `backend/app/api/calendar.py`.
-2.  **Syllabus Review UI:** Create a "Review" screen in the frontend where users can edit the parsed events before confirming the upload to their calendar.
-3.  **Campus Logic:** Implement the UCSC travel buffer logic.
+## 3. Next Steps (UX Focus)
+1.  **Syllabus Upload & Review:** Build the UI to upload a PDF, call the parser, and show a "Review Events" table before saving.
+2.  **Calendar View:** Integrate a full-calendar library (e.g., `react-big-calendar` or `FullCalendar`) to visualize the events from `backend/data/events.json`.
+3.  **Agent Chat:** Build the sidebar chat interface that calls `auto-schedule` endpoints.
