@@ -92,6 +92,16 @@ class APIService {
     }, token);
   }
 
+  async getCanvasFile(fileId: string, token: string): Promise<Blob> {
+    const response = await fetch(`${API_BASE_URL}/canvas/file/${fileId}`, {
+      headers: {
+        'Authorization': `Bearer ${token}`
+      }
+    });
+    if (!response.ok) throw new Error("Failed to fetch PDF");
+    return response.blob();
+  }
+
   // Calendar endpoints
   async getEvents(token: string, start?: string, end?: string): Promise<APIResponse<any[]>> {
     let params = '';

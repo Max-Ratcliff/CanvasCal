@@ -35,6 +35,8 @@ export function SyllabusViewer({
   const [isProcessing, setIsProcessing] = useState(false)
   const [isUploading, setIsUploading] = useState(false)
   const [viewMode, setViewMode] = useState<'insights' | 'pdf'>('insights')
+  const [pdfBlobUrl, setPdfBlobUrl] = useState<string | null>(null)
+  const [isLoadingPdf, setIsLoadingPdf] = useState(false)
 
   const fetchSyllabi = async () => {
     if (!token) return
@@ -49,6 +51,30 @@ export function SyllabusViewer({
       setIsLoading(false)
     }
   }
+
+  // Effect to fetch PDF blob when viewMode switches to 'pdf'
+  useEffect(() => {
+    if (viewMode === 'pdf' && currentSyllabus?.pdf_url && token) {
+      setIsLoadingPdf(true)
+      api.getCanvasFile(currentSyllabus.pdf_url, token)
+        .then(blob => {
+          const url = URL.createObjectURL(blob)
+          setPdfBlobUrl(url)
+        })
+        .catch(err => {
+          console.error("PDF Fetch Error:", err)
+          toast.error("Failed to load PDF preview")
+        })
+        .finally(() => setIsLoadingPdf(false))
+    }
+
+    return () => {
+      if (pdfBlobUrl) {
+        URL.revokeObjectURL(pdfBlobUrl)
+        setPdfBlobUrl(null)
+      }
+    }
+  }, [viewMode, currentSyllabus, token])
 
   useEffect(() => {
     fetchSyllabi()
@@ -253,9 +279,14 @@ export function SyllabusViewer({
                 ) : (
                   // Show PDF
                   <div className="h-full flex flex-col">
-                     {currentSyllabus.pdf_url ? (
+                     {isLoadingPdf ? (
+                        <div className="flex-1 flex flex-col items-center justify-center text-[#6b7c8a] bg-white/20 rounded-2xl border border-dashed border-white/40">
+                           <Loader2 className="w-8 h-8 animate-spin mb-4" />
+                           <p>Loading PDF from Canvas...</p>
+                        </div>
+                     ) : pdfBlobUrl ? (
                        <iframe 
-                          src={`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/canvas/file/${currentSyllabus.pdf_url}`} 
+                          src={pdfBlobUrl} 
                           className="w-full h-full rounded-2xl border-none shadow-inner bg-white/20"
                           title="Syllabus PDF"
                        />
