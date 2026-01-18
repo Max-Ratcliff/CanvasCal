@@ -25,17 +25,20 @@ export function UpcomingCard() {
       if (!token) return
       setIsLoading(true)
       try {
-        const canvasToken = localStorage.getItem('canvas_token') || undefined
-        const response = await api.getCanvasAssignments(canvasToken, token)
+        // Fetch next 30 days of events from our database (Single Source of Truth)
+        const start = new Date().toISOString()
+        const end = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
+        const response = await api.getEvents(token, start, end)
+        
         if (response.success && response.data) {
-          // Map Canvas assignments to UpcomingItem format
+          // Filter for assignments and map to UpcomingItem format
           const mappedItems: UpcomingItem[] = response.data
-            .filter((a: any) => a.due_at) // Only those with due dates
-            .map((a: any, index: number) => ({
-              id: a.id,
-              title: a.title,
-              course: a.course_name,
-              dueDate: new Date(a.due_at).toLocaleString([], { 
+            .filter((e: any) => e.event_type === 'assignment')
+            .map((e: any, index: number) => ({
+              id: e.id,
+              title: e.summary,
+              course: e.course_id || "Course",
+              dueDate: new Date(e.start_time).toLocaleString([], { 
                 month: 'short', 
                 day: 'numeric', 
                 hour: '2-digit', 
@@ -43,19 +46,22 @@ export function UpcomingCard() {
               }),
               color: COLORS[index % COLORS.length]
             }))
-            .sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime())
-            .slice(0, 5) // Top 5
+            .slice(0, 10) // Top 10
           
           setItems(mappedItems)
         }
       } catch (error) {
-        console.error("Failed to fetch assignments:", error)
+        console.error("Failed to fetch assignments from DB:", error)
       } finally {
         setIsLoading(false)
       }
     }
 
     fetchAssignments()
+
+    const handleRefresh = () => fetchAssignments()
+    window.addEventListener('calendar-updated', handleRefresh)
+    return () => window.removeEventListener('calendar-updated', handleRefresh)
   }, [token])
 
   return (

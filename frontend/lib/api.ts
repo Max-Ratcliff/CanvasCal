@@ -69,9 +69,17 @@ class APIService {
     return this.request<any[]>(`/canvas/assignments${params}`, {}, token);
   }
 
-  async syncCanvas(token: string, canvasToken?: string): Promise<APIResponse<any>> {
-    const params = canvasToken ? `?canvas_token=${canvasToken}` : '';
-    return this.request(`/canvas/sync${params}`, { method: 'POST' }, token);
+  async syncCanvas(token: string, canvasToken?: string) {
+    return this.request<any>(`/canvas/sync?canvas_token=${canvasToken || ''}`, {
+      method: 'POST',
+    }, token);
+  }
+
+  async connectCanvas(canvasUrl: string, accessToken: string, token: string) {
+    return this.request<any>('/canvas/connect', {
+      method: 'POST',
+      body: JSON.stringify({ canvas_url: canvasUrl, access_token: accessToken }),
+    }, token);
   }
 
   // Calendar endpoints

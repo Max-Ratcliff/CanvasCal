@@ -1,6 +1,7 @@
-from fastapi import APIRouter, HTTPException, BackgroundTasks, Depends
-from app.schemas.response import APIResponse
+from fastapi import APIRouter, HTTPException, Depends, BackgroundTasks
+from pydantic import BaseModel
 from canvasapi import Canvas
+from app.schemas.response import APIResponse
 from app.core.config import settings
 from app.services import parser
 from app.schemas.event import EventSchema
@@ -22,22 +23,88 @@ def get_canvas_client(user_id: str, token_override: str = None) -> Canvas:
     """
     Gets Canvas client using stored user token or override.
     """
+    from app.services.crypto import crypto
+    from app.db import get_service_db
+    
+    db = get_service_db()
+    
+    # 1. Use Override if provided (usually from manual testing/demo)
     if token_override:
+        logger.info(f"Using provided token override for user {user_id}")
         return Canvas(settings.CANVAS_API_URL, token_override)
 
-    db = get_db()
-    # Check for stored integration
-    result = db.table("user_integrations").select("canvas_access_token").eq("user_id", user_id).execute()
+    # 2. Check DB for stored integration
+    result = db.table("user_integrations").select("canvas_access_token", "canvas_base_url").eq("user_id", user_id).execute()
     
     if result.data and result.data[0].get("canvas_access_token"):
-        # TODO: Decrypt token here once we implement Canvas token encryption
-        return Canvas(settings.CANVAS_API_URL, result.data[0]["canvas_access_token"])
+        row = result.data[0]
+        try:
+            enc_token = row["canvas_access_token"]
+            decrypted_token = crypto.decrypt(enc_token)
+            
+            # Use stored URL or fallback to global setting
+            base_url = row.get("canvas_base_url")
+            if not base_url or base_url == "":
+                base_url = settings.CANVAS_API_URL
+            
+            if not base_url:
+                base_url = "https://canvas.instructure.com" # Ultimate fallback
+
+            logger.info(f"Connecting to Canvas at {base_url} (Token length: {len(decrypted_token)})")
+            return Canvas(base_url, decrypted_token)
+        except Exception as e:
+            logger.error(f"Failed to decrypt/initialize Canvas client: {e}")
+            raise HTTPException(status_code=500, detail="Secure token decryption failed")
     
-    # Fallback to env var for demo/single-user mode if not in DB
-    if settings.CANVAS_ACCESS_TOKEN:
+    # 3. Fallback to System Default (if configured in .env)
+    if settings.CANVAS_ACCESS_TOKEN and settings.CANVAS_API_URL:
+        logger.info(f"Using system-default Canvas credentials for user {user_id}")
         return Canvas(settings.CANVAS_API_URL, settings.CANVAS_ACCESS_TOKEN)
 
-    raise HTTPException(status_code=400, detail="Canvas Access Token missing. Please link Canvas first.")
+    raise HTTPException(status_code=400, detail="Canvas connection not found. Please link your account first.")
+
+class CanvasConnectRequest(BaseModel):
+    canvas_url: str
+    access_token: str
+
+@router.post("/connect", response_model=APIResponse)
+async def connect_canvas(request: CanvasConnectRequest, user = Depends(get_current_user)):
+    """
+    Saves Canvas URL and Access Token to the DB.
+    """
+    try:
+        from app.services.crypto import crypto
+        from app.db import get_service_db
+        
+        db = get_service_db()
+        
+        # Clean URL (remove trailing slashes)
+        base_url = request.canvas_url.strip().rstrip('/')
+        if not base_url.startswith('http'):
+            base_url = f"https://{base_url}"
+            
+        # Common typo correction: instructure.edu -> instructure.com
+        if "canvas.instructure.edu" in base_url:
+            base_url = base_url.replace("canvas.instructure.edu", "canvas.instructure.com")
+            logger.info(f"Corrected Canvas URL typo to: {base_url}")
+
+        # Encrypt the token (strip whitespace)
+        token_to_encrypt = request.access_token.strip()
+        enc_token = crypto.encrypt(token_to_encrypt)
+
+        data = {
+            "user_id": user.id,
+            "canvas_base_url": base_url,
+            "canvas_access_token": enc_token,
+            "updated_at": "now()"
+        }
+
+        db.table("user_integrations").upsert(data).execute()
+        
+        return APIResponse(success=True, message="Canvas connected successfully", data=None)
+    except Exception as e:
+        logger.error(f"Canvas Connect Error: {e}")
+        return APIResponse(success=False, message=str(e), data=None)
 
 @router.get("/assignments", response_model=APIResponse)
 async def get_canvas_assignments(canvas_token: str = None, user = Depends(get_current_user)):
@@ -90,24 +157,22 @@ async def process_syllabus_for_course(course, user_id: str):
             return []
 
         # Download
-        with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
-            async with httpx.AsyncClient() as client:
-                async with client.stream("GET", syllabus_file.url) as r:
-                    async for chunk in r.aiter_bytes():
-                        tmp.write(chunk)
-            tmp_path = tmp.name
-
-        # Parse
-        with open(tmp_path, "rb") as f:
-            pdf_content = f.read()
+        pdf_content = b""
+        async with httpx.AsyncClient() as client:
+            # Follow redirects as Canvas often redirects file URLs to AWS/S3
+            res = await client.get(syllabus_file.url, follow_redirects=True)
+            res.raise_for_status()
+            pdf_content = res.content
         
+        if not pdf_content:
+            logger.warning(f"Empty PDF content for course {course.id}")
+            return []
+
         # Mock UploadFile
         from starlette.datastructures import UploadFile as StarletteUploadFile
         mock_file = StarletteUploadFile(filename=syllabus_file.display_name, file=io.BytesIO(pdf_content))
         
         text = await parser.extract_text_from_pdf(mock_file)
-        os.remove(tmp_path)
-        
         events = parser.parse_syllabus_with_gemini(text)
         
         # Enrich events
@@ -151,6 +216,15 @@ async def sync_canvas_data(
                     if not getattr(assign, 'due_at', None):
                         continue
                     
+                    # Parse due_at and ensure valid range
+                    try:
+                        due_dt = datetime.fromisoformat(assign.due_at.replace('Z', '+00:00'))
+                        # Google requires a duration, so we set start to 30 mins before
+                        start_dt = due_dt - timedelta(minutes=30)
+                    except Exception as e:
+                        logger.warning(f"Failed to parse due_at '{assign.due_at}': {e}")
+                        continue
+
                     # Generate deterministic ID
                     unique_string = f"{user.id}-{assign.name}-{assign.due_at}"
                     event_id = str(uuid.uuid5(uuid.NAMESPACE_DNS, unique_string))
@@ -160,8 +234,8 @@ async def sync_canvas_data(
                         "user_id": user.id,
                         "summary": assign.name,
                         "description": getattr(assign, 'description', '') or '',
-                        "start_time": assign.due_at, # Canvas due_at is usually end time
-                        "end_time": assign.due_at,   # Use same for now or subtract 1 hour
+                        "start_time": start_dt.isoformat(),
+                        "end_time": due_dt.isoformat(),
                         "location": "Canvas",
                         "event_type": "assignment",
                         "course_id": str(course.id),

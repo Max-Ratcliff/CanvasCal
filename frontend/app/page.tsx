@@ -19,6 +19,9 @@ export default function Home() {
   const [isConnectingGoogle, setIsConnectingGoogle] = useState(false)
   const [isSyncingCanvas, setIsSyncingCanvas] = useState(false)
   const [isSyllabusOpen, setIsSyllabusOpen] = useState(false)
+  const [showCanvasConnect, setShowCanvasConnect] = useState(false)
+  const [canvasUrl, setCanvasUrl] = useState("https://canvas.instructure.com")
+  const [canvasToken, setCanvasToken] = useState("")
   const [integrations, setIntegrations] = useState({ google_calendar: false, canvas: false })
   const { session, signIn, signOut, token } = useAuth()
 
@@ -34,47 +37,45 @@ export default function Home() {
     }
   }, [token])
 
-  const handleGoogleSuccess = async (tokenResponse: any) => {
-    if (!token) return
-    setIsConnectingGoogle(true)
+  const handleCanvasConnect = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!token || !canvasUrl || !canvasToken) return
+    setIsSyncingCanvas(true)
     try {
-      const { code } = tokenResponse
-      const response = await api.googleAuth(code, token)
-      if (response.success) {
-        toast.success("Google Calendar connected!")
-        setIntegrations(prev => ({ ...prev, google_calendar: true }))
+      const res = await api.connectCanvas(canvasUrl, canvasToken, token)
+      if (res.success) {
+        toast.success("Canvas connected!")
+        setIntegrations(prev => ({ ...prev, canvas: true }))
+        setShowCanvasConnect(false)
       } else {
-        toast.error(response.message)
+        toast.error(res.message)
       }
     } catch (error) {
-      toast.error("Failed to connect Google")
+      toast.error("Failed to connect Canvas")
     } finally {
-      setIsConnectingGoogle(false)
+      setIsSyncingCanvas(false)
     }
   }
 
-  // This is for the *additional* Google Calendar permission (offline access)
-  const loginWithGoogle = useGoogleLogin({
-    onSuccess: handleGoogleSuccess,
-    onError: (error) => toast.error("Google Login Failed"),
-    flow: 'auth-code',
-    scope: 'https://www.googleapis.com/auth/calendar',
-    overrideScope: true,
-  });
-
   const handleCanvasSync = async () => {
       if (!token) return
+      if (!integrations.canvas) {
+        setShowCanvasConnect(true)
+        return
+      }
       setIsSyncingCanvas(true)
       try {
-          const canvasToken = localStorage.getItem('canvas_token') || undefined
-          const response = await api.syncCanvas(token, canvasToken)
+          const response = await api.syncCanvas(token)
           if (response.success) {
-              toast.success("Canvas sync started! Assignments will appear shortly.")
+              toast.success("Canvas sync started!")
           } else {
-              toast.error(response.message)
+              toast.error(response.message || "Canvas authentication failed.")
+              // If it failed, maybe the token is wrong. Let them re-connect.
+              setShowCanvasConnect(true)
           }
       } catch (error) {
           toast.error("Failed to sync Canvas")
+          setShowCanvasConnect(true)
       } finally {
           setIsSyncingCanvas(false)
       }
@@ -131,6 +132,76 @@ export default function Home() {
   return (
     <div className="min-h-screen bg-[#FFECD1] relative">
       <BananaSlugBackground />
+
+      {/* Canvas Connection Overlay */}
+      {showCanvasConnect && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+          <div className="bg-white rounded-3xl shadow-xl w-full max-w-md p-8 animate-in zoom-in-95 duration-200">
+            <h2 className="text-2xl font-bold text-[#2d4a5e] mb-2">Connect Canvas</h2>
+            <p className="text-sm text-[#6b7c8a] mb-6">Follow these steps to link your school account:</p>
+            
+            <form onSubmit={handleCanvasConnect} className="space-y-6">
+              <div>
+                <label className="block text-sm font-semibold text-[#2d4a5e] mb-2">Canvas School URL</label>
+                <input 
+                  type="text" 
+                  value={canvasUrl}
+                  onChange={(e) => setCanvasUrl(e.target.value)}
+                  placeholder="https://canvas.ucsc.edu"
+                  className="w-full px-4 py-3 rounded-xl border border-[#2d4a5e]/20 text-sm focus:outline-none focus:border-[#2d4a5e]"
+                  required
+                />
+              </div>
+
+              <div className="bg-[#f4c542]/10 p-4 rounded-2xl border border-[#f4c542]/20">
+                <p className="text-xs text-[#2d4a5e] leading-relaxed">
+                  1. Click the button below to open your Canvas settings.<br/>
+                  2. Scroll to <strong>"Approved Integrations"</strong>.<br/>
+                  3. Click <strong>"+ New Access Token"</strong>.<br/>
+                  4. Copy the code and paste it below.
+                </p>
+                <a 
+                  href={`${canvasUrl}/profile/settings#access_tokens`} 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className="mt-3 inline-block text-xs font-bold text-[#2d4a5e] underline hover:text-black"
+                >
+                  Go to Canvas Settings →
+                </a>
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold text-[#2d4a5e] mb-2">Access Token</label>
+                <input 
+                  type="password" 
+                  value={canvasToken}
+                  onChange={(e) => setCanvasToken(e.target.value)}
+                  placeholder="Paste your token here..."
+                  className="w-full px-4 py-3 rounded-xl border border-[#2d4a5e]/20 text-sm focus:outline-none focus:border-[#2d4a5e]"
+                  required
+                />
+              </div>
+
+              <div className="flex gap-3">
+                <button 
+                  type="button"
+                  onClick={() => setShowCanvasConnect(false)}
+                  className="flex-1 px-4 py-3 rounded-xl border border-[#2d4a5e]/20 text-[#2d4a5e] font-semibold hover:bg-gray-50 transition-colors"
+                >
+                  Back
+                </button>
+                <button 
+                  type="submit"
+                  disabled={isSyncingCanvas}
+                  className="flex-2 bg-[#2d4a5e] text-white px-6 py-3 rounded-xl font-semibold hover:bg-[#1e3a4e] transition-colors disabled:opacity-50 flex items-center justify-center"
+                >
+                  {isSyncingCanvas ? <Loader2 className="w-5 h-5 animate-spin" /> : "Connect Canvas"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
       
       {/* Header */}
       <header className="px-6 py-5 relative z-10">
@@ -178,7 +249,7 @@ export default function Home() {
                 <button 
                   onClick={handleCanvasSync}
                   disabled={isSyncingCanvas}
-                  className="flex items-center gap-2 bg-white text-[#2d4a5e] px-4 py-2.5 rounded-xl border border-[#2d4a5e]/20 hover:bg-gray-50 transition-colors disabled:opacity-50"
+                  className="flex items-center gap-2 bg-[#2d4a5e] text-white px-4 py-2.5 rounded-xl hover:bg-[#1e3a4e] transition-colors disabled:opacity-50"
                 >
                   {isSyncingCanvas ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
                   <span className="text-sm font-medium">
