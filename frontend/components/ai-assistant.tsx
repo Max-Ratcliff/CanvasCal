@@ -54,7 +54,16 @@ export function AIAssistant() {
     setIsLoading(true)
 
     try {
-      const response = await api.chatWithAgent(currentInput, token)
+      // Format history for Gemini (exclude the very first greeting if it's generic, or include it)
+      // Map 'assistant' -> 'model'
+      const history = messages
+        .filter(m => m.id !== 1) // Optional: Skip the default greeting
+        .map(m => ({
+          role: m.role === "assistant" ? "model" : "user",
+          parts: [{ text: m.content }]
+        }))
+
+      const response = await api.chatWithAgent(currentInput, history, token)
       if (response.success && response.data) {
         setMessages((prev) => [
           ...prev,

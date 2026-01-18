@@ -30,13 +30,16 @@ def chat_with_agent(message: str, user_id: str, history: list = None):
         except Exception as e:
             return {"error": str(e)}
 
-    def add_calendar_event(summary: str, start_time: str, end_time: str, description: Optional[str] = None, location: Optional[str] = None, event_type: Optional[str] = "study", repeat_frequency: Optional[str] = None, repeat_count: Optional[int] = None, repeat_until: Optional[str] = None):
+    def add_calendar_event(summary: str, start_time: str, end_time: str, description: Optional[str] = None, location: Optional[str] = None, event_type: Optional[str] = None, repeat_frequency: Optional[str] = None, repeat_count: Optional[int] = None, repeat_until: Optional[str] = None):
         """
         Add a new event to the calendar. Can be a single event or a recurring series.
         """
         from app.db import get_db
         db = get_db()
         created_events = []
+        
+        # Apply defaults manually since Gemini API schema doesn't support them in signature
+        final_event_type = event_type or "study"
         
         try:
             start_dt = datetime.fromisoformat(start_time.replace('Z', '+00:00'))
@@ -68,7 +71,7 @@ def chat_with_agent(message: str, user_id: str, history: list = None):
                     "end_time": current_end.isoformat(),
                     "description": description or "",
                     "location": location or "",
-                    "event_type": event_type or "study",
+                    "event_type": final_event_type,
                     "source": "ai"
                 }
                 result = db.table("events").insert(event_data).execute()
@@ -130,10 +133,41 @@ def chat_with_agent(message: str, user_id: str, history: list = None):
         2. Use tools to check availability before adding events if appropriate.
         3. If adding a class, default to weekly.
         """
+
+        # Construct full conversation history
+        contents = []
+        if history:
+            for turn in history:
+                # Ensure parts is a list of strings for now (simple text history)
+                # If complex parts come in, we might need better parsing
+                raw_parts = turn.get("parts", [])
+                parts_list = []
+                
+                if isinstance(raw_parts, str):
+                    parts_list.append(types.Part(text=raw_parts))
+                elif isinstance(raw_parts, list):
+                    for p in raw_parts:
+                        # p could be a dict like {'text': '...'} or just a string if simplified
+                        if isinstance(p, dict) and 'text' in p:
+                            parts_list.append(types.Part(text=p['text']))
+                        elif isinstance(p, str):
+                            parts_list.append(types.Part(text=p))
+                
+                if parts_list:
+                    contents.append(types.Content(
+                        role=turn.get("role", "user"),
+                        parts=parts_list
+                    ))
+        
+        # Add current user message
+        contents.append(types.Content(
+            role="user",
+            parts=[types.Part(text=message)]
+        ))
         
         response = client.models.generate_content(
             model='gemini-2.0-flash',
-            contents=message,
+            contents=contents,
             config=types.GenerateContentConfig(
                 tools=agent_tools,
                 system_instruction=system_instruction,

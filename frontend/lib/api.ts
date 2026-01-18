@@ -56,10 +56,10 @@ class APIService {
   }
 
   // AI Agent endpoint
-  async chatWithAgent(message: string, token: string) {
+  async chatWithAgent(message: string, history: any[], token: string) {
     return this.request<{ response: string }>('/agent/chat', {
       method: 'POST',
-      body: JSON.stringify({ message }),
+      body: JSON.stringify({ message, history }),
     }, token);
   }
 
