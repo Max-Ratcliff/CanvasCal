@@ -8,6 +8,7 @@ import { Upload } from 'lucide-react';
 
 export default function App() {
   const [uploading, setUploading] = useState(false);
+  const [refreshKey, setRefreshKey] = useState(0);
 
   const handleSyllabusUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -19,7 +20,7 @@ export default function App() {
       if (response.success) {
         alert('Syllabus processed successfully! Events added to calendar.');
         // Trigger calendar refresh
-        window.location.reload();
+        setRefreshKey(prev => prev + 1);
       }
     } catch (error) {
       console.error('Upload failed:', error);
@@ -40,7 +41,7 @@ export default function App() {
                 Manage your academic schedule and export events to Google Calendar
               </p>
             </div>
-            
+
             <label className="flex items-center gap-2 px-4 py-2 text-white rounded-lg cursor-pointer transition-colors"
               style={{ backgroundColor: '#185177' }}
               onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#e2711d'}
@@ -57,18 +58,18 @@ export default function App() {
             </label>
           </div>
         </header>
-        
+
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Left Column - Calendar and Checklists */}
           <div className="lg:col-span-2 space-y-6">
-            <Calendar />
+            <Calendar key={refreshKey} />
             <Announcements />
             <AssignmentChecklist />
           </div>
-          
+
           {/* Right Column - AI Agent */}
           <div className="lg:col-span-1">
-            <AIAgent />
+            <AIAgent onActionComplete={() => setRefreshKey(prev => prev + 1)} />
           </div>
         </div>
       </div>

@@ -43,7 +43,7 @@ def parse_syllabus_with_gemini(text: str) -> List[EventSchema]:
     if not settings.GEMINI_API_KEY:
         raise Exception("GEMINI_API_KEY is not configured.")
 
-    model = genai.GenerativeModel('gemini-1.5-flash')
+    model = genai.GenerativeModel('gemini-2.0-flash')
 
     current_year = datetime.now().year
     
