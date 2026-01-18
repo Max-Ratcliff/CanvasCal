@@ -17,14 +17,19 @@ def chat_with_agent(message: str, user_id: str, history: list = None, timezone: 
         return "Gemini API Key is not configured."
 
     # Define tools inside to capture user_id closure
-    def get_calendar_events(start_time: str, end_time: str):
+    def get_calendar_events(start_time: str, end_time: str, keyword: Optional[str] = None):
         """
         List events from the calendar between two ISO 8601 timestamps.
+        Optional 'keyword' filters events where the summary contains the given text (case-insensitive).
         """
         from app.db import get_db
         db = get_db()
         try:
             query = db.table("events").select("*").eq("user_id", user_id).gte("start_time", start_time).lte("end_time", end_time)
+            
+            if keyword:
+                query = query.ilike("summary", f"%{keyword}%")
+                
             result = query.execute()
             return result.data
         except Exception as e:
@@ -92,10 +97,30 @@ def chat_with_agent(message: str, user_id: str, history: list = None, timezone: 
     def delete_calendar_event(event_id: str):
         """Delete an event by ID."""
         from app.db import get_db
+        from app.services.google_calendar import get_calendar_service
+        
         db = get_db()
         try:
+            # 1. Fetch event to check for Google ID
+            event_res = db.table("events").select("google_event_id").eq("id", event_id).eq("user_id", user_id).execute()
+            if not event_res.data:
+                return {"error": "Event not found or access denied"}
+            
+            google_event_id = event_res.data[0].get("google_event_id")
+            
+            # 2. Delete from Google Calendar if exists
+            if google_event_id:
+                try:
+                    service = get_calendar_service(user_id)
+                    service.delete_event(google_event_id)
+                except Exception as e:
+                    logger.error(f"Failed to delete from Google Calendar: {e}")
+                    # Continue to delete from DB even if Google fails? 
+                    # Probably yes, to keep local state clean, but warn user.
+
+            # 3. Delete from DB
             result = db.table("events").delete().eq("id", event_id).eq("user_id", user_id).execute()
-            return {"status": "success", "deleted_count": len(result.data)}
+            return {"status": "success", "deleted_count": len(result.data), "google_deleted": bool(google_event_id)}
         except Exception as e:
             return {"error": str(e)}
 
@@ -137,6 +162,10 @@ def chat_with_agent(message: str, user_id: str, history: list = None, timezone: 
         2. Use tools to check availability before adding events if appropriate.
         3. If adding a class, default to weekly.
         4. TIMEZONE: The user is in {timezone}. When calling tools, generate ISO 8601 timestamps with the correct offset for this timezone (e.g. for US/Pacific it might be -07:00 or -08:00). Do NOT use UTC ('Z') unless specifically asked.
+        5. DELETING EVENTS: Never ask the user for an ID. First, use `get_calendar_events` with the `keyword` and inferred date range to find the event.
+           - If you find exactly one match, proceed to delete it using its ID.
+           - If you find multiple matches, list them and ask the user to specify which one.
+           - If you find none, tell the user you couldn't find it.
         """
 
         # Construct full conversation history
