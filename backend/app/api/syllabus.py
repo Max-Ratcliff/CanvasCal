@@ -1,6 +1,6 @@
 from fastapi import APIRouter, UploadFile, File, HTTPException
 from app.schemas.response import APIResponse
-from app.services import parser
+from app.services import parser, storage
 from app.schemas.event import EventSchema
 from typing import List
 
@@ -20,6 +20,9 @@ async def process_syllabus(file: UploadFile = File(...)):
              raise HTTPException(status_code=400, detail="Could not extract text from PDF.")
              
         events = parser.parse_syllabus_with_gemini(raw_text)
+        
+        # Save to storage
+        storage.save_events(events)
         
         return APIResponse(success=True, message="Syllabus parsed successfully", data=events)
     except HTTPException as he:

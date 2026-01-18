@@ -3,7 +3,7 @@ from fastapi import APIRouter, HTTPException, BackgroundTasks
 from app.schemas.response import APIResponse
 from canvasapi import Canvas
 from app.core.config import settings
-from app.services import parser
+from app.services import parser, storage
 from app.schemas.event import EventSchema
 from typing import List, Dict, Any
 import logging
@@ -61,6 +61,9 @@ async def import_canvas_syllabus(course_id: int, canvas_token: str = None):
 
         # 4. Parse with Gemini
         events = parser.parse_syllabus_with_gemini(text)
+        
+        # 5. Save to local storage
+        storage.save_events(events)
         
         return APIResponse(success=True, message=f"Imported from {syllabus_file.display_name}", data=events)
 

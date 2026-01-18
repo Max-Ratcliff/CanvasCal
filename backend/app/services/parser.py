@@ -1,17 +1,12 @@
+import fitz  # PyMuPDF
+from google import genai
 import json
 import re
-from datetime import datetime, timedelta
-from typing import List
-
-import fitz  # PyMuPDF
-import google.generativeai as genai
-from app.core.config import settings
-from app.schemas.event import EventSchema
 from fastapi import UploadFile
-
-# Configure Gemini
-if settings.GEMINI_API_KEY:
-    genai.configure(api_key=settings.GEMINI_API_KEY)
+from typing import List
+from app.schemas.event import EventSchema
+from app.core.config import settings
+from datetime import datetime, timedelta
 
 async def extract_text_from_pdf(file: UploadFile) -> str:
     """
@@ -43,7 +38,7 @@ def parse_syllabus_with_gemini(text: str) -> List[EventSchema]:
     if not settings.GEMINI_API_KEY:
         raise Exception("GEMINI_API_KEY is not configured.")
 
-    model = genai.GenerativeModel('gemini-1.5-flash')
+    client = genai.Client(api_key=settings.GEMINI_API_KEY)
 
     current_year = datetime.now().year
     
@@ -72,7 +67,10 @@ def parse_syllabus_with_gemini(text: str) -> List[EventSchema]:
     """
 
     try:
-        response = model.generate_content(prompt)
+        response = client.models.generate_content(
+            model='gemini-2.0-flash-lite-preview-02-05',
+            contents=prompt
+        )
         cleaned_json = clean_json_response(response.text)
         data = json.loads(cleaned_json)
         
