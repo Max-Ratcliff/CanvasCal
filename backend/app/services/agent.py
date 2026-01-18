@@ -148,6 +148,37 @@ def chat_with_agent(message: str, user_id: str, history: list = None, timezone: 
     ]
 
     try:
+        # CONTEXT INJECTION: Fetch upcoming 7 days of events
+        from app.db import get_db
+        db = get_db()
+        
+        ctx_start = datetime.now()
+        ctx_end = ctx_start + timedelta(days=7)
+        
+        # We use a direct DB query here similar to get_calendar_events
+        # but formatted for the LLM's context window
+        try:
+            ctx_res = db.table("events").select("summary, start_time, end_time, event_type") \
+                .eq("user_id", user_id) \
+                .gte("start_time", ctx_start.isoformat()) \
+                .lte("end_time", ctx_end.isoformat()) \
+                .execute()
+            
+            upcoming_events_text = "No upcoming events found."
+            if ctx_res.data:
+                lines = []
+                for e in ctx_res.data:
+                    # Simple format: "Monday 10:00 AM - Math 101 (Class)"
+                    try:
+                        s = datetime.fromisoformat(e['start_time'].replace('Z', '+00:00'))
+                        day_str = s.strftime('%A %I:%M %p')
+                        lines.append(f"- {day_str}: {e['summary']} ({e['event_type']})")
+                    except:
+                        continue
+                upcoming_events_text = "\n".join(lines)
+        except Exception as e:
+            upcoming_events_text = f"Error loading context: {e}"
+
         client = genai.Client(api_key=settings.GEMINI_API_KEY)
         current_date = datetime.now()
         system_instruction = f"""
@@ -156,6 +187,10 @@ def chat_with_agent(message: str, user_id: str, history: list = None, timezone: 
         Current Year: {current_date.year}
         User ID: {user_id}
         User Timezone: {timezone}
+        
+        === YOUR CONTEXT (Next 7 Days) ===
+        {upcoming_events_text}
+        ==================================
         
         Your Goal: Help the user manage their schedule. Be fast, concise, and smart.
         1. INFER information. Calculate relative dates like 'next Tuesday'.

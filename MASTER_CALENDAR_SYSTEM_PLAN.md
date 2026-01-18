@@ -5,86 +5,73 @@ Build a resilient, high-performance, and security-first synchronization engine t
 
 ---
 
-## 2. Security & Authentication (Offline Access)
-
-### A. The "Offline" Auth Flow
-1.  **Frontend:** Request an `Authorization Code` with `access_type='offline'` and `prompt='consent'`.
-2.  **Backend:** `POST /api/v1/auth/google/token` exchanges the code for a `refresh_token`.
-3.  **Encrypted Persistence:** 
-    *   **AES-256 Encryption:** All `refresh_tokens` are encrypted before being stored in Supabase.
-    *   **Secret Management:** Encryption keys are stored in environment variables (never in the DB).
-
-### B. Minimal Scopes
-*   Use `https://www.googleapis.com/auth/calendar.app.created` to limit the app's footprint to its own created calendar, or `...calendar.events` for full primary calendar conflict resolution.
+## 2. Security & Authentication [COMPLETED]
+-   **Auth:** Supabase Magic Link (App) + Google OAuth2 (Calendar Sync).
+-   **Encryption:** AES-256 for stored Google Refresh Tokens.
+-   **RLS:** Row Level Security enabled on `events` and `user_integrations`, with Service Role bypass for background tasks.
 
 ---
 
-## 3. High-Performance Synchronization Engine
-
-### A. Incremental Sync (Delta Sync)
-*   **Initial Sync:** Fetch all events and store the `nextSyncToken`.
-*   **Delta Sync:** Use the `syncToken` for subsequent updates to fetch only modified/deleted events.
-*   **Token Recovery:** Detect `410 Gone` errors; trigger a full cache invalidation and re-sync when tokens expire.
-
-### B. Batch Operations
-*   Use **Google Batch Requests** to sync multiple Canvas assignments in a single HTTP round-trip, significantly reducing latency and API usage.
+## 3. High-Performance Synchronization Engine [COMPLETED]
+-   **Canvas Sync:** Auto-scrapes active courses, assignments, and parses PDF syllabi via Gemini 2.0.
+-   **Deterministic IDs:** Uses UUIDv5 (User+Name+Date) to prevent duplicates during re-syncs.
+-   **Google Sync:** `GoogleCalendarService` handles Create/Update/Delete operations.
+    -   *Note: Isolation logic (CanvasCal vs Primary) needs verification.*
 
 ---
 
-## 4. Full-Spectrum Conflict Engine
-
-### A. Aggregated FreeBusy
-*   **Discovery:** Call `calendarList.list` to identify all user-selected calendars.
-*   **Query:** Pass all discovered IDs to the `freebusy().query()` endpoint.
-*   **Constraint Solver:** AI Agent uses this aggregated "Busy" map to find gaps for study sessions.
-
-### B. Time Zone Integrity
-*   **UTC-First Policy:** All timestamps are converted to UTC at the API boundary. The UI handles local display offset.
+## 4. AI Agent & Intelligence [IN PROGRESS]
+-   **Context:** Agent is timezone-aware and context-aware (history).
+-   **Tools:**
+    -   [x] `add_calendar_event` (with local time support)
+    -   [x] `get_calendar_events` (with keyword search)
+    -   [x] `delete_calendar_event` (Syncs to Google)
+    -   [ ] `update_calendar_event` (Edit capability)
+-   **Fuzzy Logic:** Improved deletion matching (Search -> Verify -> Delete).
 
 ---
 
-## 5. Real-Time Webhooks & Reliability
-
-### A. The Webhook Watchdog
-*   **Registration:** Call `service.events().watch()` for the user's primary calendar.
-*   **Renewal Job:** A daily cron job identifies `watch_expiration` timestamps nearing the 7-day limit and renews the lease.
-
-### B. Debounce Queue
-*   **Mechanism:** Webhooks are pushed to a Redis/Celery queue with a 30-second delay.
-*   **Benefit:** Prevents "sync storms" (multiple webhooks for a single user action) by grouping multiple changes into one Delta Sync.
+## 5. Syllabus Intelligence & UI [PLANNED]
+-   **Dashboard:** "View Syllabi" modal replacing simple upload button.
+-   **Structure:**
+    -   **Sidebar:** List of Canvas Courses.
+    -   **Main View:** Scraped insights (Exams, Office Hours, Policies).
+    -   **Sync:** Toggleable sync for "AI Insights" to Calendar.
+-   **Storage:** Need schema updates to store parsed syllabus *content/insights*, not just resulting events.
 
 ---
 
 ## 6. Implementation Roadmap
 
-### Phase 1: Security & Auth [COMPLETED]
-- [x] **DB:** Update `users` table with `google_calendar_settings` (JSONB) and `encrypted_refresh_token`.
-- [x] **Backend:** Implement AES-256 encryption middleware for tokens.
+### Phase 1: Core Foundation [COMPLETED]
+- [x] Auth & Security
+- [x] Canvas Assignment Sync
+- [x] Basic Google Calendar Sync
 
-### Phase 2: The Resilient Sync Service [COMPLETED]
-- [x] **Service:** Build `sync_canvas` endpoint with auto-syllabus scraping and background processing.
-- [x] **Logic:** Implement deterministic UUID generation and `upsert` logic for bandwidth-efficient updates.
+### Phase 2: Agent Refinement [IN PROGRESS]
+- [ ] **Editing:** Implement `update_event` tool.
+- [ ] **UI:** Fix chat scrollbar and fuzzy delete confirmation.
 
-### Phase 3: Conflict & Webhooks [IN PROGRESS]
-- [ ] **Conflicts:** Integrate aggregated `freebusy` into the scheduler.
-- [ ] **Webhooks:** Implement the `/webhooks/google` debouncer.
+### Phase 3: Syllabus "Brain" [NEXT]
+- [ ] **UI:** Build `SyllabusViewer` component.
+- [ ] **Backend:** Create `course_insights` table.
+- [ ] **AI:** Tune prompts to extract "Key Dates" vs "Policies".
 
-### Phase 4: AI Agent Empowerment
-- [ ] **Tools:** Expose `check_availability` and `reschedule_conflicts` as LLM tools.
+### Phase 4: Polish & Isolation
+- [ ] **Isolation:** Ensure 'CanvasCal' is strictly used; fix 'primary' fallback.
+- [ ] **Deployment:** Render/Vercel setup.
 
 ---
 
 ## 7. Data Schema (Supabase)
 ```sql
-create table users (
+-- Planned Schema for Insights
+create table course_insights (
   id uuid primary key,
-  email text unique,
-  encrypted_refresh_token text,
-  google_calendar_settings jsonb default '{
-    "preferred_calendars": ["primary"],
-    "watch_expiration": null,
-    "sync_error_count": 0
-  }'::jsonb,
-  last_sync_token text
+  course_id text,
+  user_id uuid,
+  category text, -- 'exam', 'policy', 'office_hours'
+  content text,
+  extracted_at timestamp
 );
 ```
